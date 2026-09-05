@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Canvas, IText } from "fabric";
 import { SpreadCanvas } from "./components/SpreadCanvas";
+import { ThemePreviewModal } from "./components/ThemePreviewModal";
 import { BookProject } from "./types";
-import { PAPERS, FONTS, LOFI_PALETTE } from "./constants";
+import { THEMES, FONTS, LOFI_PALETTE } from "./constants";
 import { exportBookToPdf } from "./utils/pdfExport";
 import "./App.css";
 
@@ -19,25 +20,29 @@ export default function App() {
   const [activeCanvas, setActiveCanvas] = useState<Canvas | null>(null);
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
 
-  const [mode, setMode] = useState<"select" | "draw">("select");
-  const [brushColor, setBrushColor] = useState<string>("#2c221e");
+  const [mode, setMode] = useState<"select" | "draw" | "pan">("select");
+  const [brushColor, setBrushColor] = useState<string>("#1d291e");
   const [brushSize, setBrushSize] = useState<number>(4);
 
-  const [selectedFont, setSelectedFont] = useState<string>("Caveat");
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const [selectedFont, setSelectedFont] = useState<string>("Patrick Hand");
   const [fontSize, setFontSize] = useState<number>(34);
 
   const [isCreatingModal, setIsCreatingModal] = useState<boolean>(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
-  const [selectedPaperId, setSelectedPaperId] =
-    useState<BookProject["paperId"]>("latte");
+  const [newThemeId, setNewThemeId] = useState<string>("botanical_meadow");
 
-  const [isEditingSpecs, setIsEditingSpecs] = useState<boolean>(false);
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
-  const activeProject =
-    projects.find((p) => p.id === activeProjectId) || null;
-  const currentPaper =
-    PAPERS.find((p) => p.id === activeProject?.paperId) || PAPERS[0];
+  const activeProject = projects.find((p) => p.id === activeProjectId) || null;
+  const currentTheme =
+    THEMES.find((t) => t.id === activeProject?.themeId) || THEMES[0];
 
   const activeSpread = activeProject
     ? activeProject.spreads.find(
@@ -57,14 +62,13 @@ export default function App() {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const paper =
-      PAPERS.find((p) => p.id === selectedPaperId) || PAPERS[0];
+    const theme = THEMES.find((t) => t.id === newThemeId) || THEMES[0];
 
     const project: BookProject = {
       id: `book-${Date.now()}`,
       title: newTitle.trim(),
-      author: newAuthor.trim() || "Cafe Writer",
-      paperId: selectedPaperId,
+      author: newAuthor.trim() || "Author",
+      themeId: newThemeId,
       createdAt: new Date().toLocaleDateString(),
       spreads: [
         { id: "s-1", leftPageNum: 1, rightPageNum: 2, canvasData: null },
@@ -75,7 +79,10 @@ export default function App() {
     setProjects((prev) => [...prev, project]);
     setActiveProjectId(project.id);
     setActivePageNum(1);
-    setBrushColor(paper.ink);
+    setBrushColor(theme.inkColor);
+    setSelectedFont(theme.recommendedFont);
+    setZoomLevel(100);
+    setPan({ x: 0, y: 0 });
     setIsCreatingModal(false);
     setNewTitle("");
     setNewAuthor("");
@@ -126,12 +133,12 @@ export default function App() {
         activeCanvas.discardActiveObject();
         if (targetSpread.canvasData) {
           activeCanvas.loadFromJSON(targetSpread.canvasData).then(() => {
-            activeCanvas.backgroundColor = currentPaper.bg;
+            activeCanvas.backgroundColor = "transparent";
             activeCanvas.renderAll();
           });
         } else {
           activeCanvas.clear();
-          activeCanvas.backgroundColor = currentPaper.bg;
+          activeCanvas.backgroundColor = "transparent";
           activeCanvas.renderAll();
         }
       }
@@ -164,20 +171,27 @@ export default function App() {
     goToPage(newLeft);
   };
 
-  const addTextElement = () => {
+  const addTextElement = async () => {
     if (!activeCanvas) return;
+
+    try {
+      await (document as any).fonts.load(`${fontSize}px "${selectedFont}"`);
+    } catch (e) {
+      console.warn(e);
+    }
+
     const posX = activeSide === "left" ? 140 : 740;
-    const text = new IText("Write some warm thoughts...", {
+    const text = new IText("Write your lovely story here...", {
       left: posX,
       top: 200,
       fontFamily: selectedFont,
       fontSize: fontSize,
-      fill: currentPaper.ink,
-      width: 380,
+      fill: currentTheme.inkColor,
+      width: 360,
       lineHeight: 1.35,
       padding: 8,
-      borderColor: "#c68b59",
-      cornerColor: "#c68b59",
+      borderColor: currentTheme.accentColor,
+      cornerColor: currentTheme.accentColor,
       cornerSize: 8,
       transparentCorners: false,
     });
@@ -188,11 +202,35 @@ export default function App() {
     activeCanvas.renderAll();
   };
 
-  const updateTextProp = (key: string, val: any) => {
+  const updateTextFont = async (font: string) => {
+    setSelectedFont(font);
     if (!activeCanvas || !selectedObject || selectedObject.type !== "i-text")
       return;
-    selectedObject.set(key, val);
-    activeCanvas.renderAll();
+
+    const targetSize = selectedObject.fontSize || fontSize;
+    try {
+      await (document as any).fonts.load(`${targetSize}px "${font}"`);
+    } catch (e) {
+      console.warn(e);
+    }
+
+    selectedObject.set("fontFamily", font);
+    if (typeof (selectedObject as any).initDimensions === "function") {
+      (selectedObject as any).initDimensions();
+    }
+    activeCanvas.requestRenderAll();
+  };
+
+  const updateTextFontSize = (size: number) => {
+    setFontSize(size);
+    if (!activeCanvas || !selectedObject || selectedObject.type !== "i-text")
+      return;
+
+    selectedObject.set("fontSize", size);
+    if (typeof (selectedObject as any).initDimensions === "function") {
+      (selectedObject as any).initDimensions();
+    }
+    activeCanvas.requestRenderAll();
   };
 
   const deleteElement = () => {
@@ -206,22 +244,64 @@ export default function App() {
     }
   };
 
+  const resetView = () => {
+    setZoomLevel(100);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handleMouseDownOnStage = (e: React.MouseEvent) => {
+    if (mode === "pan" || e.button === 1 || e.altKey) {
+      setIsPanning(true);
+      panStartRef.current = {
+        x: e.clientX - pan.x,
+        y: e.clientY - pan.y,
+      };
+    }
+  };
+
+  const handleMouseMoveOnStage = (e: React.MouseEvent) => {
+    if (isPanning) {
+      setPan({
+        x: e.clientX - panStartRef.current.x,
+        y: e.clientY - panStartRef.current.y,
+      });
+    }
+  };
+
+  const handleMouseUpOnStage = () => {
+    if (isPanning) {
+      setIsPanning(false);
+    }
+  };
+
+  const handleWheelOnStage = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -10 : 10;
+    setZoomLevel((z) => Math.min(250, Math.max(50, z + delta)));
+  };
+
   const handleExport = async () => {
     if (!activeCanvas || !activeProject || !activeSpread) return;
-    const pdfBytes = await exportBookToPdf(
-      activeProject.spreads.map((s) => ({
-        ...s,
-        themeId: activeProject.paperId,
-      })),
-      activeCanvas,
-      activeSpread.id
-    );
-    const blob = new Blob([pdfBytes], { type: "application/pdf" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${activeProject.title.replace(/\s+/g, "_")}.pdf`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    setIsExporting(true);
+    try {
+      saveCurrentSpread();
+      const pdfBytes = await exportBookToPdf(
+        activeProject.spreads,
+        activeCanvas,
+        activeSpread.id,
+        currentTheme
+      );
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${activeProject.title.replace(/\s+/g, "_")}.pdf`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      alert("Error generating PDF: " + String(err));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!activeProject || !activeSpread) {
@@ -235,7 +315,7 @@ export default function App() {
             </div>
             <div className="brand-text-block">
               <h1>Atelier Lofi</h1>
-              <span>Warm Children's Book Studio</span>
+              <span>Children's Picture Book Studio</span>
             </div>
           </div>
           <button
@@ -252,8 +332,8 @@ export default function App() {
               <div className="mug-sketch" />
               <h2>A quiet blank notebook awaits</h2>
               <p>
-                Sip your coffee, choose your warm paper tone, and write lovely
-                tales.
+                Choose from rich storybook themes with custom corner artwork, warm
+                fonts, and hand-drawn pages.
               </p>
               <button
                 className="cafe-btn primary"
@@ -265,35 +345,38 @@ export default function App() {
           ) : (
             <div className="notebook-grid">
               {projects.map((proj) => {
-                const paper =
-                  PAPERS.find((p) => p.id === proj.paperId) || PAPERS[0];
+                const theme =
+                  THEMES.find((t) => t.id === proj.themeId) || THEMES[0];
                 return (
                   <div
                     key={proj.id}
                     className="notebook-card"
-                    onClick={() => setActiveProjectId(proj.id)}
+                    onClick={() => {
+                      setActiveProjectId(proj.id);
+                      setActivePageNum(1);
+                      resetView();
+                    }}
                   >
                     <div
                       className="notebook-spine-tab"
-                      style={{ backgroundColor: paper.spine }}
+                      style={{ backgroundColor: theme.spineColor }}
                     />
                     <div
                       className="notebook-cover"
                       style={{
-                        backgroundColor: paper.bg,
-                        borderColor: paper.border,
+                        backgroundColor: theme.paperBg,
+                        borderColor: theme.borderColor,
                       }}
                     >
-                      <div className="ribbon-placeholder" />
-                      <h3 style={{ color: paper.ink }}>{proj.title}</h3>
+                      <h3 style={{ color: theme.inkColor }}>{proj.title}</h3>
                       <span
                         className="author-name"
-                        style={{ color: paper.ink }}
+                        style={{ color: theme.inkColor }}
                       >
                         by {proj.author}
                       </span>
                       <span className="page-count-badge">
-                        {proj.spreads.length * 2} pages • {paper.name}
+                        {proj.spreads.length * 2} pages • {theme.name}
                       </span>
                     </div>
                   </div>
@@ -305,7 +388,7 @@ export default function App() {
 
         {isCreatingModal && (
           <div className="cafe-modal-backdrop">
-            <div className="cafe-modal">
+            <div className="cafe-modal large">
               <div className="modal-title-row">
                 <h3>New Story Notebook</h3>
                 <button
@@ -317,47 +400,68 @@ export default function App() {
               </div>
 
               <form onSubmit={createNewBook} className="cafe-form">
-                <div className="form-field">
-                  <label>Notebook Title</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. The Cat on the Windowsill"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                  />
+                <div className="form-fields-horizontal">
+                  <div className="form-field flex-1">
+                    <label>Notebook Title</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. The Fox & The Firefly"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-field flex-1">
+                    <label>Author / Dedication</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. For our son"
+                      value={newAuthor}
+                      onChange={(e) => setNewAuthor(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 <div className="form-field">
-                  <label>Author or Note</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Bedtime stories for my family"
-                    value={newAuthor}
-                    onChange={(e) => setNewAuthor(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-field">
-                  <label>Paper Style</label>
-                  <div className="paper-tasting-grid">
-                    {PAPERS.map((p) => (
+                  <label>Choose Book Theme & Corner Ornaments</label>
+                  <div className="theme-catalog-grid compact">
+                    {THEMES.map((thm) => (
                       <div
-                        key={p.id}
-                        className={`paper-choice-pill ${
-                          selectedPaperId === p.id ? "active" : ""
+                        key={thm.id}
+                        className={`theme-catalog-card ${
+                          newThemeId === thm.id ? "selected" : ""
                         }`}
-                        onClick={() => setSelectedPaperId(p.id)}
+                        onClick={() => setNewThemeId(thm.id)}
                       >
                         <div
-                          className="paper-color-dot"
+                          className="mini-book-preview small"
                           style={{
-                            backgroundColor: p.bg,
-                            border: `1px solid ${p.border}`,
+                            backgroundColor: thm.spineColor,
+                            borderColor: thm.spineColor,
                           }}
-                        />
-                        <div className="paper-meta">
-                          <span className="name">{p.name}</span>
+                        >
+                          <div
+                            className="mini-spread"
+                            style={{
+                              backgroundColor: thm.paperBg,
+                              borderColor: thm.borderColor,
+                            }}
+                          >
+                            <span
+                              className="mini-sample-text"
+                              style={{
+                                fontFamily: thm.recommendedFont,
+                                color: thm.inkColor,
+                              }}
+                            >
+                              Aa
+                            </span>
+                          </div>
+                        </div>
+                        <div className="theme-card-details">
+                          <span className="theme-title">{thm.name}</span>
+                          <span className="theme-tagline">{thm.tagline}</span>
                         </div>
                       </div>
                     ))}
@@ -396,15 +500,13 @@ export default function App() {
           </button>
           <div className="book-indicator">
             <span className="book-name">{activeProject.title}</span>
-            <span className="book-tone-name">
-              {currentPaper.name} paper
-            </span>
+            <span className="book-tone-name">{currentTheme.name}</span>
           </div>
           <button
             className="lofi-link-btn"
-            onClick={() => setIsEditingSpecs(true)}
+            onClick={() => setIsThemeModalOpen(true)}
           >
-            Paper Options
+            Themes & Corners
           </button>
         </div>
 
@@ -414,13 +516,38 @@ export default function App() {
               className={`pill-option ${mode === "select" ? "active" : ""}`}
               onClick={() => setMode("select")}
             >
-              Touch / Move
+              Select
             </button>
             <button
               className={`pill-option ${mode === "draw" ? "active" : ""}`}
               onClick={() => setMode("draw")}
             >
-              Fountain Pen
+              Pen
+            </button>
+            <button
+              className={`pill-option ${mode === "pan" ? "active" : ""}`}
+              onClick={() => setMode("pan")}
+              title="Click and drag anywhere to move the whole book"
+            >
+              Pan (Hand)
+            </button>
+          </div>
+
+          <div className="zoom-controller-cluster">
+            <button
+              className="zoom-btn"
+              onClick={() => setZoomLevel((z) => Math.max(50, z - 15))}
+            >
+              −
+            </button>
+            <span className="zoom-label" onClick={resetView} title="Click to Reset">
+              {zoomLevel}%
+            </span>
+            <button
+              className="zoom-btn"
+              onClick={() => setZoomLevel((z) => Math.min(250, z + 15))}
+            >
+              +
             </button>
           </div>
 
@@ -440,7 +567,9 @@ export default function App() {
                 {LOFI_PALETTE.map((col) => (
                   <button
                     key={col}
-                    className={`color-drop ${brushColor === col ? "active" : ""}`}
+                    className={`color-drop ${
+                      brushColor === col ? "active" : ""
+                    }`}
                     style={{ backgroundColor: col }}
                     onClick={() => setBrushColor(col)}
                   />
@@ -457,14 +586,15 @@ export default function App() {
                   <select
                     className="lofi-select"
                     value={selectedFont}
-                    onChange={(e) => {
-                      setSelectedFont(e.target.value);
-                      updateTextProp("fontFamily", e.target.value);
-                    }}
+                    onChange={(e) => updateTextFont(e.target.value)}
                   >
                     {FONTS.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
+                      <option
+                        key={f.name}
+                        value={f.name}
+                        style={{ fontFamily: f.name }}
+                      >
+                        {f.name}
                       </option>
                     ))}
                   </select>
@@ -474,15 +604,11 @@ export default function App() {
                     min="16"
                     max="72"
                     value={fontSize}
-                    onChange={(e) => {
-                      setFontSize(Number(e.target.value));
-                      updateTextProp("fontSize", Number(e.target.value));
-                    }}
+                    onChange={(e) =>
+                      updateTextFontSize(Number(e.target.value))
+                    }
                   />
-                  <button
-                    className="lofi-del-btn"
-                    onClick={deleteElement}
-                  >
+                  <button className="lofi-del-btn" onClick={deleteElement}>
                     Remove
                   </button>
                 </>
@@ -492,24 +618,43 @@ export default function App() {
         </div>
 
         <div className="topbar-right">
-          <button className="export-leather-btn" onClick={handleExport}>
-            Print Book (PDF)
+          <button
+            className="export-leather-btn"
+            disabled={isExporting}
+            onClick={handleExport}
+          >
+            {isExporting ? "Exporting..." : "Print Book (PDF)"}
           </button>
         </div>
       </header>
 
-      <main className="lofi-desk-viewport">
-        <SpreadCanvas
-          paper={currentPaper}
-          mode={mode}
-          brushColor={brushColor}
-          brushSize={brushSize}
-          canvasData={activeSpread.canvasData}
-          activeSide={activeSide}
-          turnState={turnState}
-          onCanvasReady={setActiveCanvas}
-          onSelectionChange={setSelectedObject}
-        />
+      <main
+        className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
+          isPanning ? "grabbing" : ""
+        }`}
+        onMouseDown={handleMouseDownOnStage}
+        onMouseMove={handleMouseMoveOnStage}
+        onMouseUp={handleMouseUpOnStage}
+        onWheel={handleWheelOnStage}
+      >
+        <div
+          className="stage-book-anchor"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoomLevel / 100})`,
+          }}
+        >
+          <SpreadCanvas
+            theme={currentTheme}
+            mode={mode}
+            brushColor={brushColor}
+            brushSize={brushSize}
+            canvasData={activeSpread.canvasData}
+            activeSide={activeSide}
+            turnState={turnState}
+            onCanvasReady={setActiveCanvas}
+            onSelectionChange={setSelectedObject}
+          />
+        </div>
       </main>
 
       <footer className="lofi-bottom-tray">
@@ -537,7 +682,9 @@ export default function App() {
           {pageList.map((pageNum) => (
             <button
               key={pageNum}
-              className={`page-chip ${activePageNum === pageNum ? "active" : ""}`}
+              className={`page-chip ${
+                activePageNum === pageNum ? "active" : ""
+              }`}
               onClick={() => goToPage(pageNum)}
             >
               p. {pageNum}
@@ -549,58 +696,18 @@ export default function App() {
         </div>
       </footer>
 
-      {isEditingSpecs && (
-        <div className="cafe-modal-backdrop">
-          <div className="cafe-modal small">
-            <div className="modal-title-row">
-              <h3>Paper Textures</h3>
-              <button
-                className="close-modal-btn"
-                onClick={() => setIsEditingSpecs(false)}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="paper-tasting-grid">
-              {PAPERS.map((p) => (
-                <div
-                  key={p.id}
-                  className={`paper-choice-pill ${
-                    activeProject.paperId === p.id ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setProjects((prev) =>
-                      prev.map((proj) =>
-                        proj.id === activeProjectId
-                          ? { ...proj, paperId: p.id }
-                          : proj
-                      )
-                    );
-                  }}
-                >
-                  <div
-                    className="paper-color-dot"
-                    style={{
-                      backgroundColor: p.bg,
-                      border: `1px solid ${p.border}`,
-                    }}
-                  />
-                  <div className="paper-meta">
-                    <span className="name">{p.name}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="modal-footer-btns">
-              <button
-                className="cafe-btn primary"
-                onClick={() => setIsEditingSpecs(false)}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
+      {isThemeModalOpen && (
+        <ThemePreviewModal
+          currentThemeId={activeProject.themeId}
+          onSelectTheme={(id) => {
+            setProjects((prev) =>
+              prev.map((proj) =>
+                proj.id === activeProjectId ? { ...proj, themeId: id } : proj
+              )
+            );
+          }}
+          onClose={() => setIsThemeModalOpen(false)}
+        />
       )}
     </div>
   );

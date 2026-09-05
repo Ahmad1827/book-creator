@@ -5,20 +5,25 @@ export interface BookSpread {
   canvasData: any | null;
 }
 
-export interface PaperStyle {
-  id: "latte" | "steamed-milk" | "matcha-creme" | "dark-mocha";
+export interface BookTheme {
+  id: string;
   name: string;
-  bg: string;
-  ink: string;
-  spine: string;
-  border: string;
+  tagline: string;
+  paperBg: string;
+  inkColor: string;
+  spineColor: string;
+  borderColor: string;
+  accentColor: string;
+  frameColor: string;
+  decorType: "botanical" | "celestial" | "victorian" | "sakura" | "chai" | "brass";
+  recommendedFont: string;
 }
 
 export interface BookProject {
   id: string;
   title: string;
   author: string;
-  paperId: PaperStyle["id"];
+  themeId: string;
   spreads: BookSpread[];
   createdAt: string;
 }

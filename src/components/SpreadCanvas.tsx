@@ -1,24 +1,22 @@
 import React, { useEffect, useRef } from "react";
 import { Canvas, PencilBrush } from "fabric";
-import { PaperStyle } from "../types";
+import { BookTheme } from "../types";
+import { ThemeDecors } from "./ThemeDecors";
 
 interface SpreadCanvasProps {
-  paper: PaperStyle;
-  mode: "select" | "draw";
+  theme: BookTheme;
+  mode: "select" | "draw" | "pan";
   brushColor: string;
   brushSize: number;
   canvasData: any | null;
   activeSide: "left" | "right";
-  turnState: {
-    active: boolean;
-    direction: "next" | "prev";
-  } | null;
+  turnState: { active: boolean; direction: "next" | "prev" } | null;
   onCanvasReady: (canvas: Canvas) => void;
   onSelectionChange: (target: any | null) => void;
 }
 
 export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
-  paper,
+  theme,
   mode,
   brushColor,
   brushSize,
@@ -37,10 +35,9 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     const canvas = new Canvas(canvasElRef.current, {
       width: 1200,
       height: 650,
-      backgroundColor: paper.bg,
+      backgroundColor: "transparent",
       isDrawingMode: mode === "draw",
-      selection: true,
-      renderOnAddRemove: true,
+      selection: mode === "select",
     });
 
     const brush = new PencilBrush(canvas);
@@ -62,7 +59,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
 
     if (canvasData) {
       canvas.loadFromJSON(canvasData).then(() => {
-        canvas.backgroundColor = paper.bg;
+        canvas.backgroundColor = "transparent";
         canvas.renderAll();
       });
     }
@@ -77,74 +74,66 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     if (!canvas) return;
 
     canvas.isDrawingMode = mode === "draw";
+    canvas.selection = mode === "select";
+
     if (canvas.freeDrawingBrush) {
       canvas.freeDrawingBrush.color = brushColor;
       canvas.freeDrawingBrush.width = brushSize;
     }
   }, [mode, brushColor, brushSize]);
 
-  useEffect(() => {
-    const canvas = fabricRef.current;
-    if (!canvas) return;
-    canvas.backgroundColor = paper.bg;
-    canvas.renderAll();
-  }, [paper]);
-
   return (
-    <div className="lofi-desk-stage">
-      <div className="desk-mat">
+    <div
+      className="lofi-book-casing"
+      style={{
+        backgroundColor: theme.spineColor,
+        borderColor: theme.spineColor,
+      }}
+    >
+      <div className="spine-cloth-strip" />
+
+      <div
+        className="spread-paper-surface"
+        style={{
+          backgroundColor: theme.paperBg,
+          borderColor: theme.borderColor,
+        }}
+      >
+        <ThemeDecors theme={theme} />
+
+        <div className={`active-page-rim ${activeSide}`} />
+
         <div
-          className="book-casing"
-          style={{
-            backgroundColor: paper.spine,
-            borderColor: paper.spine,
-          }}
+          className="canvas-viewport-layer"
+          style={{ pointerEvents: mode === "pan" ? "none" : "auto" }}
         >
-          <div className="spine-cloth-strip" />
-
-          <div
-            className="spread-body"
-            style={{
-              backgroundColor: paper.bg,
-              borderColor: paper.border,
-            }}
-          >
-            <div className={`active-page-rim ${activeSide}`} />
-
-            <div className="canvas-container-layer">
-              <canvas ref={canvasElRef} />
-            </div>
-
-            <div className="book-gutter-depth" />
-
-            {turnState?.active && (
-              <div
-                className={`realistic-flipper-sheet ${turnState.direction}`}
-              >
-                <div
-                  className="flipper-face flipper-front"
-                  style={{ backgroundColor: paper.bg }}
-                >
-                  <div className="page-sheen" />
-                  <div className="curl-edge-shadow" />
-                </div>
-                <div
-                  className="flipper-face flipper-back"
-                  style={{ backgroundColor: paper.bg }}
-                >
-                  <div className="page-sheen back" />
-                  <div className="curl-edge-shadow back" />
-                </div>
-              </div>
-            )}
-
-            {turnState?.active && (
-              <div
-                className={`gutter-cast-shadow ${turnState.direction}`}
-              />
-            )}
-          </div>
+          <canvas ref={canvasElRef} />
         </div>
+
+        <div className="book-gutter-depth" />
+
+        {turnState?.active && (
+          <div className={`realistic-flipper-sheet ${turnState.direction}`}>
+            <div
+              className="flipper-face flipper-front"
+              style={{ backgroundColor: theme.paperBg }}
+            >
+              <div className="page-sheen" />
+              <div className="curl-edge-shadow" />
+            </div>
+            <div
+              className="flipper-face flipper-back"
+              style={{ backgroundColor: theme.paperBg }}
+            >
+              <div className="page-sheen back" />
+              <div className="curl-edge-shadow back" />
+            </div>
+          </div>
+        )}
+
+        {turnState?.active && (
+          <div className={`gutter-cast-shadow ${turnState.direction}`} />
+        )}
       </div>
     </div>
   );
