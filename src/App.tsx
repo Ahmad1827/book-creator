@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { Canvas, IText } from "fabric";
 import { SpreadCanvas } from "./components/SpreadCanvas";
-import { ProjectHub } from "./components/ProjectHub";
-import { EditBookModal } from "./components/EditBookModal";
-import { BookProject, BookFormat } from "./types";
-import { BOOK_FORMATS, BOOK_THEMES, FONTS, COLOR_PALETTE } from "./constants";
+import { BookProject } from "./types";
+import { PAPERS, FONTS, LOFI_PALETTE } from "./constants";
 import { exportBookToPdf } from "./utils/pdfExport";
 import "./App.css";
 
@@ -13,80 +11,77 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   const [activePageNum, setActivePageNum] = useState<number>(1);
-  const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
+  const [turnState, setTurnState] = useState<{
+    active: boolean;
+    direction: "next" | "prev";
+  } | null>(null);
 
   const [activeCanvas, setActiveCanvas] = useState<Canvas | null>(null);
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
 
   const [mode, setMode] = useState<"select" | "draw">("select");
-  const [brushColor, setBrushColor] = useState<string>("#333333");
-  const [brushSize, setBrushSize] = useState<number>(6);
+  const [brushColor, setBrushColor] = useState<string>("#2c221e");
+  const [brushSize, setBrushSize] = useState<number>(4);
 
-  const [selectedFont, setSelectedFont] = useState<string>("Lora");
-  const [fontSize, setFontSize] = useState<number>(36);
-  const [textColor, setTextColor] = useState<string>("#2a1b12");
+  const [selectedFont, setSelectedFont] = useState<string>("Caveat");
+  const [fontSize, setFontSize] = useState<number>(34);
 
-  const [isEditingSettings, setIsEditingSettings] = useState<boolean>(false);
+  const [isCreatingModal, setIsCreatingModal] = useState<boolean>(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newAuthor, setNewAuthor] = useState("");
+  const [selectedPaperId, setSelectedPaperId] =
+    useState<BookProject["paperId"]>("latte");
 
-  const activeProject = projects.find((p) => p.id === activeProjectId) || null;
-  const currentFormat = activeProject
-    ? BOOK_FORMATS.find((f) => f.id === activeProject.formatId) || BOOK_FORMATS[0]
-    : BOOK_FORMATS[0];
-  const currentTheme = activeProject
-    ? BOOK_THEMES.find((t) => t.id === activeProject.themeId) || BOOK_THEMES[0]
-    : BOOK_THEMES[0];
+  const [isEditingSpecs, setIsEditingSpecs] = useState<boolean>(false);
+
+  const activeProject =
+    projects.find((p) => p.id === activeProjectId) || null;
+  const currentPaper =
+    PAPERS.find((p) => p.id === activeProject?.paperId) || PAPERS[0];
 
   const activeSpread = activeProject
     ? activeProject.spreads.find(
-        (s) => s.leftPageNum === activePageNum || s.rightPageNum === activePageNum
+        (s) =>
+          s.leftPageNum === activePageNum || s.rightPageNum === activePageNum
       ) || activeProject.spreads[0]
     : null;
 
-  const activeSide: "left" | "right" =
-    activeSpread && activePageNum === activeSpread.leftPageNum ? "left" : "right";
+  const activeSide =
+    activeSpread && activePageNum === activeSpread.leftPageNum
+      ? "left"
+      : "right";
   const totalPages = activeProject ? activeProject.spreads.length * 2 : 0;
   const pageList = Array.from({ length: totalPages }, (_, i) => i + 1);
 
-  const createNewProject = (
-    title: string,
-    author: string,
-    formatId: BookFormat["id"],
-    themeId: string
-  ) => {
-    const newProject: BookProject = {
+  const createNewBook = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    const paper =
+      PAPERS.find((p) => p.id === selectedPaperId) || PAPERS[0];
+
+    const project: BookProject = {
       id: `book-${Date.now()}`,
-      title,
-      author,
-      formatId,
-      themeId,
+      title: newTitle.trim(),
+      author: newAuthor.trim() || "Cafe Writer",
+      paperId: selectedPaperId,
       createdAt: new Date().toLocaleDateString(),
       spreads: [
-        { id: "spread-1", leftPageNum: 1, rightPageNum: 2, canvasData: null },
-        { id: "spread-2", leftPageNum: 3, rightPageNum: 4, canvasData: null },
+        { id: "s-1", leftPageNum: 1, rightPageNum: 2, canvasData: null },
+        { id: "s-2", leftPageNum: 3, rightPageNum: 4, canvasData: null },
       ],
     };
-    setProjects((prev) => [...prev, newProject]);
-    setActiveProjectId(newProject.id);
+
+    setProjects((prev) => [...prev, project]);
+    setActiveProjectId(project.id);
     setActivePageNum(1);
-    const selTheme = BOOK_THEMES.find((t) => t.id === themeId) || BOOK_THEMES[0];
-    setTextColor(selTheme.textColor);
-    setBrushColor(selTheme.textColor);
-    setSelectedFont(selTheme.primaryFont);
+    setBrushColor(paper.ink);
+    setIsCreatingModal(false);
+    setNewTitle("");
+    setNewAuthor("");
   };
 
-  const deleteProject = (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    if (activeProjectId === id) setActiveProjectId(null);
-  };
-
-  const updateProjectDetails = (updated: Partial<BookProject>) => {
-    if (!activeProjectId) return;
-    setProjects((prev) =>
-      prev.map((p) => (p.id === activeProjectId ? { ...p, ...updated } : p))
-    );
-  };
-
-  const saveActiveSpread = () => {
+  const saveCurrentSpread = () => {
     if (!activeCanvas || !activeProject || !activeSpread) return;
     const json = activeCanvas.toJSON();
     setProjects((prev) =>
@@ -103,88 +98,87 @@ export default function App() {
     );
   };
 
-  const navigateToPage = (targetPage: number) => {
+  const goToPage = (page: number) => {
     if (
       !activeProject ||
       !activeSpread ||
-      targetPage === activePageNum ||
-      targetPage < 1 ||
-      targetPage > totalPages
+      page === activePageNum ||
+      page < 1 ||
+      page > totalPages ||
+      turnState?.active
     )
       return;
 
-    saveActiveSpread();
-    const direction = targetPage > activePageNum ? "next" : "prev";
-    setFlipDirection(direction);
+    saveCurrentSpread();
+    const dir = page > activePageNum ? "next" : "prev";
+    setTurnState({ active: true, direction: dir });
 
     const targetSpread =
       activeProject.spreads.find(
-        (s) => s.leftPageNum === targetPage || s.rightPageNum === targetPage
+        (s) => s.leftPageNum === page || s.rightPageNum === page
       ) || activeProject.spreads[0];
 
-    const needsCanvasSwap = targetSpread.id !== activeSpread.id;
+    const needsLoad = targetSpread.id !== activeSpread.id;
 
     setTimeout(() => {
-      setActivePageNum(targetPage);
-
-      if (needsCanvasSwap && activeCanvas) {
+      setActivePageNum(page);
+      if (needsLoad && activeCanvas) {
         activeCanvas.discardActiveObject();
         if (targetSpread.canvasData) {
           activeCanvas.loadFromJSON(targetSpread.canvasData).then(() => {
-            activeCanvas.backgroundColor = currentTheme.pageBackground;
+            activeCanvas.backgroundColor = currentPaper.bg;
             activeCanvas.renderAll();
           });
         } else {
           activeCanvas.clear();
-          activeCanvas.backgroundColor = currentTheme.pageBackground;
+          activeCanvas.backgroundColor = currentPaper.bg;
           activeCanvas.renderAll();
         }
       }
-    }, 220);
+    }, 450);
 
     setTimeout(() => {
-      setFlipDirection(null);
-    }, 600);
+      setTurnState(null);
+    }, 900);
   };
 
   const addSpreadPages = () => {
     if (!activeProject) return;
-    saveActiveSpread();
-    const lastSpread = activeProject.spreads[activeProject.spreads.length - 1];
-    const newLeft = lastSpread.rightPageNum + 1;
-    const newRight = newLeft + 1;
+    saveCurrentSpread();
+    const last = activeProject.spreads[activeProject.spreads.length - 1];
+    const newLeft = last.rightPageNum + 1;
     const newSpread = {
-      id: `spread-${Date.now()}`,
+      id: `s-${Date.now()}`,
       leftPageNum: newLeft,
-      rightPageNum: newRight,
+      rightPageNum: newLeft + 1,
       canvasData: null,
     };
 
     setProjects((prev) =>
       prev.map((p) =>
-        p.id === activeProjectId ? { ...p, spreads: [...p.spreads, newSpread] } : p
+        p.id === activeProjectId
+          ? { ...p, spreads: [...p.spreads, newSpread] }
+          : p
       )
     );
-    navigateToPage(newLeft);
+    goToPage(newLeft);
   };
 
-  const addStoryText = () => {
-    if (!activeCanvas || !currentFormat) return;
-
-    const posX = activeSide === "left" ? 120 : currentFormat.pageWidth + 100;
-    const text = new IText("Begin your story here...", {
+  const addTextElement = () => {
+    if (!activeCanvas) return;
+    const posX = activeSide === "left" ? 140 : 740;
+    const text = new IText("Write some warm thoughts...", {
       left: posX,
-      top: 180,
+      top: 200,
       fontFamily: selectedFont,
       fontSize: fontSize,
-      fill: textColor,
-      width: currentFormat.pageWidth - 220,
+      fill: currentPaper.ink,
+      width: 380,
       lineHeight: 1.35,
       padding: 8,
-      borderColor: currentTheme.accentColor,
-      cornerColor: currentTheme.accentColor,
-      cornerStyle: "circle",
-      cornerSize: 9,
+      borderColor: "#c68b59",
+      cornerColor: "#c68b59",
+      cornerSize: 8,
       transparentCorners: false,
     });
 
@@ -194,22 +188,14 @@ export default function App() {
     activeCanvas.renderAll();
   };
 
-  const updateSelectedText = (key: string, value: any) => {
-    if (!activeCanvas || !selectedObject || selectedObject.type !== "i-text") return;
-    selectedObject.set(key, value);
+  const updateTextProp = (key: string, val: any) => {
+    if (!activeCanvas || !selectedObject || selectedObject.type !== "i-text")
+      return;
+    selectedObject.set(key, val);
     activeCanvas.renderAll();
   };
 
-  const undoLastAction = () => {
-    if (!activeCanvas) return;
-    const objects = activeCanvas.getObjects();
-    if (objects.length > 0) {
-      activeCanvas.remove(objects[objects.length - 1]);
-      activeCanvas.renderAll();
-    }
-  };
-
-  const deleteActiveObject = () => {
+  const deleteElement = () => {
     if (!activeCanvas) return;
     const active = activeCanvas.getActiveObject();
     if (active) {
@@ -220,265 +206,401 @@ export default function App() {
     }
   };
 
-  const handleExportPdf = async () => {
+  const handleExport = async () => {
     if (!activeCanvas || !activeProject || !activeSpread) return;
     const pdfBytes = await exportBookToPdf(
-      activeProject.spreads.map((s) => ({ ...s, themeId: activeProject.themeId })),
+      activeProject.spreads.map((s) => ({
+        ...s,
+        themeId: activeProject.paperId,
+      })),
       activeCanvas,
       activeSpread.id
     );
     const blob = new Blob([pdfBytes], { type: "application/pdf" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `${activeProject.title.replace(/\s+/g, "_")}_PrintReady.pdf`;
+    link.download = `${activeProject.title.replace(/\s+/g, "_")}.pdf`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
 
   if (!activeProject || !activeSpread) {
     return (
-      <ProjectHub
-        projects={projects}
-        onOpenProject={(proj) => {
-          setActiveProjectId(proj.id);
-          setActivePageNum(1);
-        }}
-        onCreateProject={createNewProject}
-        onDeleteProject={deleteProject}
-      />
+      <div className="lofi-cafe-hub">
+        <header className="cafe-nav">
+          <div className="cafe-brand">
+            <div className="steam-icon">
+              <div className="steam-line line-1" />
+              <div className="steam-line line-2" />
+            </div>
+            <div className="brand-text-block">
+              <h1>Atelier Lofi</h1>
+              <span>Warm Children's Book Studio</span>
+            </div>
+          </div>
+          <button
+            className="cafe-btn primary"
+            onClick={() => setIsCreatingModal(true)}
+          >
+            + Brew a New Story
+          </button>
+        </header>
+
+        <main className="cafe-bookshelf">
+          {projects.length === 0 ? (
+            <div className="cafe-empty-corner">
+              <div className="mug-sketch" />
+              <h2>A quiet blank notebook awaits</h2>
+              <p>
+                Sip your coffee, choose your warm paper tone, and write lovely
+                tales.
+              </p>
+              <button
+                className="cafe-btn primary"
+                onClick={() => setIsCreatingModal(true)}
+              >
+                Create First Notebook
+              </button>
+            </div>
+          ) : (
+            <div className="notebook-grid">
+              {projects.map((proj) => {
+                const paper =
+                  PAPERS.find((p) => p.id === proj.paperId) || PAPERS[0];
+                return (
+                  <div
+                    key={proj.id}
+                    className="notebook-card"
+                    onClick={() => setActiveProjectId(proj.id)}
+                  >
+                    <div
+                      className="notebook-spine-tab"
+                      style={{ backgroundColor: paper.spine }}
+                    />
+                    <div
+                      className="notebook-cover"
+                      style={{
+                        backgroundColor: paper.bg,
+                        borderColor: paper.border,
+                      }}
+                    >
+                      <div className="ribbon-placeholder" />
+                      <h3 style={{ color: paper.ink }}>{proj.title}</h3>
+                      <span
+                        className="author-name"
+                        style={{ color: paper.ink }}
+                      >
+                        by {proj.author}
+                      </span>
+                      <span className="page-count-badge">
+                        {proj.spreads.length * 2} pages • {paper.name}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </main>
+
+        {isCreatingModal && (
+          <div className="cafe-modal-backdrop">
+            <div className="cafe-modal">
+              <div className="modal-title-row">
+                <h3>New Story Notebook</h3>
+                <button
+                  className="close-modal-btn"
+                  onClick={() => setIsCreatingModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={createNewBook} className="cafe-form">
+                <div className="form-field">
+                  <label>Notebook Title</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. The Cat on the Windowsill"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>Author or Note</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Bedtime stories for my family"
+                    value={newAuthor}
+                    onChange={(e) => setNewAuthor(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>Paper Style</label>
+                  <div className="paper-tasting-grid">
+                    {PAPERS.map((p) => (
+                      <div
+                        key={p.id}
+                        className={`paper-choice-pill ${
+                          selectedPaperId === p.id ? "active" : ""
+                        }`}
+                        onClick={() => setSelectedPaperId(p.id)}
+                      >
+                        <div
+                          className="paper-color-dot"
+                          style={{
+                            backgroundColor: p.bg,
+                            border: `1px solid ${p.border}`,
+                          }}
+                        />
+                        <div className="paper-meta">
+                          <span className="name">{p.name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="modal-footer-btns">
+                  <button
+                    type="button"
+                    className="cafe-btn secondary"
+                    onClick={() => setIsCreatingModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="cafe-btn primary">
+                    Open Notebook
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
   return (
-    <div className="studio-app-screen">
-      <header className="studio-head-nav">
-        <div className="head-left-group">
-          <button className="nav-back-shelf-btn" onClick={() => setActiveProjectId(null)}>
-            &#8592; Bookshelf
+    <div className="lofi-app-frame">
+      <header className="lofi-topbar">
+        <div className="topbar-left">
+          <button
+            className="lofi-back-btn"
+            onClick={() => setActiveProjectId(null)}
+          >
+            ← Shelf
           </button>
-          <div className="project-title-badge">
-            <span className="book-name-title">{activeProject.title}</span>
-            <span className="book-theme-subtitle">
-              {currentFormat.label} • {currentTheme.name}
+          <div className="book-indicator">
+            <span className="book-name">{activeProject.title}</span>
+            <span className="book-tone-name">
+              {currentPaper.name} paper
             </span>
           </div>
-          <button className="nav-edit-specs-btn" onClick={() => setIsEditingSettings(true)}>
-            Edit Specs
+          <button
+            className="lofi-link-btn"
+            onClick={() => setIsEditingSpecs(true)}
+          >
+            Paper Options
           </button>
         </div>
 
-        <div className="head-right-group">
-          <button className="master-export-btn" onClick={handleExportPdf}>
-            Export 300 DPI PDF
-          </button>
-        </div>
-      </header>
-
-      <div className="studio-editor-workspace">
-        <aside className="editor-control-panel">
-          <div className="panel-section">
-            <span className="section-kicker">Workspace Mode</span>
-            <div className="pill-mode-switch">
-              <button
-                className={`mode-btn ${mode === "select" ? "active" : ""}`}
-                onClick={() => setMode("select")}
-              >
-                Pointer / Arrange
-              </button>
-              <button
-                className={`mode-btn ${mode === "draw" ? "active" : ""}`}
-                onClick={() => setMode("draw")}
-              >
-                Hand Illustration
-              </button>
-            </div>
+        <div className="topbar-center-tools">
+          <div className="lofi-pill-switch">
+            <button
+              className={`pill-option ${mode === "select" ? "active" : ""}`}
+              onClick={() => setMode("select")}
+            >
+              Touch / Move
+            </button>
+            <button
+              className={`pill-option ${mode === "draw" ? "active" : ""}`}
+              onClick={() => setMode("draw")}
+            >
+              Fountain Pen
+            </button>
           </div>
 
+          <div className="soft-vertical-bar" />
+
           {mode === "draw" ? (
-            <div className="panel-section">
-              <span className="section-kicker">Drawing Instrument</span>
-              <div className="row-slider-label">
-                <span>Thickness</span>
-                <span>{brushSize}px</span>
-              </div>
+            <div className="palette-inline-tray">
               <input
                 type="range"
-                className="custom-range"
+                className="lofi-warm-slider"
                 min="2"
-                max="60"
+                max="48"
                 value={brushSize}
                 onChange={(e) => setBrushSize(Number(e.target.value))}
               />
-
-              <span className="section-kicker sub-kicker">Pigment Palette</span>
-              <div className="swatch-palette-matrix">
-                {COLOR_PALETTE.map((color) => (
+              <div className="lofi-color-drops">
+                {LOFI_PALETTE.map((col) => (
                   <button
-                    key={color}
-                    className={`palette-swatch-circle ${brushColor === color ? "active" : ""}`}
-                    style={{ background: color }}
-                    onClick={() => setBrushColor(color)}
+                    key={col}
+                    className={`color-drop ${brushColor === col ? "active" : ""}`}
+                    style={{ backgroundColor: col }}
+                    onClick={() => setBrushColor(col)}
                   />
                 ))}
               </div>
             </div>
           ) : (
-            <div className="panel-section">
-              <span className="section-kicker">Story Typography</span>
-              <button className="add-passage-btn" onClick={addStoryText}>
-                + Add Text to Page {activePageNum}
+            <div className="type-inline-tray">
+              <button className="lofi-add-btn" onClick={addTextElement}>
+                + Add Words
               </button>
-
-              {selectedObject && selectedObject.type === "i-text" && (
-                <div className="type-inspector-box">
-                  <div className="input-field-block">
-                    <label>Story Font</label>
-                    <select
-                      className="styled-select"
-                      value={selectedFont}
-                      onChange={(e) => {
-                        setSelectedFont(e.target.value);
-                        updateSelectedText("fontFamily", e.target.value);
-                      }}
-                    >
-                      {FONTS.map((f) => (
-                        <option key={f.family} value={f.family}>
-                          {f.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="input-field-block">
-                    <div className="row-slider-label">
-                      <span>Size</span>
-                      <span>{fontSize}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      className="custom-range"
-                      min="16"
-                      max="80"
-                      value={fontSize}
-                      onChange={(e) => {
-                        setFontSize(Number(e.target.value));
-                        updateSelectedText("fontSize", Number(e.target.value));
-                      }}
-                    />
-                  </div>
-
-                  <div className="input-field-block">
-                    <label>Ink Color</label>
-                    <div className="swatch-palette-matrix">
-                      {COLOR_PALETTE.map((color) => (
-                        <button
-                          key={color}
-                          className={`palette-swatch-circle ${textColor === color ? "active" : ""}`}
-                          style={{ background: color }}
-                          onClick={() => {
-                            setTextColor(color);
-                            updateSelectedText("fill", color);
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              {selectedObject?.type === "i-text" && (
+                <>
+                  <select
+                    className="lofi-select"
+                    value={selectedFont}
+                    onChange={(e) => {
+                      setSelectedFont(e.target.value);
+                      updateTextProp("fontFamily", e.target.value);
+                    }}
+                  >
+                    {FONTS.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="range"
+                    className="lofi-warm-slider"
+                    min="16"
+                    max="72"
+                    value={fontSize}
+                    onChange={(e) => {
+                      setFontSize(Number(e.target.value));
+                      updateTextProp("fontSize", Number(e.target.value));
+                    }}
+                  />
+                  <button
+                    className="lofi-del-btn"
+                    onClick={deleteElement}
+                  >
+                    Remove
+                  </button>
+                </>
               )}
             </div>
           )}
+        </div>
 
-          <div className="panel-bottom-tools">
-            <button className="subtle-tool-btn" onClick={undoLastAction}>
-              Undo Stroke
-            </button>
-            <button
-              className="danger-tool-btn"
-              disabled={!selectedObject}
-              onClick={deleteActiveObject}
-            >
-              Delete Element
-            </button>
-          </div>
-        </aside>
+        <div className="topbar-right">
+          <button className="export-leather-btn" onClick={handleExport}>
+            Print Book (PDF)
+          </button>
+        </div>
+      </header>
 
-        <main className="editor-center-stage">
-          <div className="spread-navigation-header">
-            <button
-              className="page-nav-arrow"
-              disabled={activePageNum === 1}
-              onClick={() => navigateToPage(activePageNum - 1)}
-            >
-              &#8592; Previous
-            </button>
-            <div className="real-book-tag">
-              Viewing Pages <span className="highlight-pill">{activeSpread.leftPageNum}</span> &{" "}
-              <span className="highlight-pill">{activeSpread.rightPageNum}</span> of {totalPages}
-            </div>
-            <button
-              className="page-nav-arrow"
-              disabled={activePageNum === totalPages}
-              onClick={() => navigateToPage(activePageNum + 1)}
-            >
-              Next &#8594;
-            </button>
-          </div>
+      <main className="lofi-desk-viewport">
+        <SpreadCanvas
+          paper={currentPaper}
+          mode={mode}
+          brushColor={brushColor}
+          brushSize={brushSize}
+          canvasData={activeSpread.canvasData}
+          activeSide={activeSide}
+          turnState={turnState}
+          onCanvasReady={setActiveCanvas}
+          onSelectionChange={setSelectedObject}
+        />
+      </main>
 
-          <div className="book-centering-wrapper">
-            <SpreadCanvas
-              theme={currentTheme}
-              format={currentFormat}
-              mode={mode}
-              brushColor={brushColor}
-              brushSize={brushSize}
-              canvasData={activeSpread.canvasData}
-              activeSide={activeSide}
-              flipDirection={flipDirection}
-              onCanvasReady={setActiveCanvas}
-              onSelectionChange={setSelectedObject}
-            />
-          </div>
-        </main>
-      </div>
-
-      <footer className="editor-single-page-bar">
-        <div className="bar-title-cluster">
-          <span className="bar-tag">PAGE JUMP</span>
-          <button className="add-spread-mini-btn" onClick={addSpreadPages}>
-            + Add 2 Pages
+      <footer className="lofi-bottom-tray">
+        <div className="tray-page-turner">
+          <button
+            className="turn-btn left"
+            disabled={activePageNum === 1 || !!turnState?.active}
+            onClick={() => goToPage(activePageNum - 1)}
+          >
+            ← Prev Page
+          </button>
+          <span className="page-tracker-text">
+            Page {activePageNum} of {totalPages}
+          </span>
+          <button
+            className="turn-btn right"
+            disabled={activePageNum === totalPages || !!turnState?.active}
+            onClick={() => goToPage(activePageNum + 1)}
+          >
+            Next Page →
           </button>
         </div>
 
-        <div className="page-ribbon-carousel">
-          {pageList.map((pageNum) => {
-            const isLeft = pageNum % 2 === 1;
-            const isSelected = pageNum === activePageNum;
-
-            return (
-              <div
-                key={pageNum}
-                className={`page-single-tab ${isSelected ? "selected" : ""}`}
-                onClick={() => navigateToPage(pageNum)}
-              >
-                <div
-                  className={`tab-card-shape ${isLeft ? "left-edge" : "right-edge"}`}
-                  style={{ background: currentTheme.pageBackground }}
-                >
-                  <span className="tab-number">{pageNum}</span>
-                </div>
-                <span className="tab-position-label">{isLeft ? "L" : "R"}</span>
-              </div>
-            );
-          })}
+        <div className="tray-tabs-ribbon">
+          {pageList.map((pageNum) => (
+            <button
+              key={pageNum}
+              className={`page-chip ${activePageNum === pageNum ? "active" : ""}`}
+              onClick={() => goToPage(pageNum)}
+            >
+              p. {pageNum}
+            </button>
+          ))}
+          <button className="page-chip add" onClick={addSpreadPages}>
+            + 2 Pages
+          </button>
         </div>
       </footer>
 
-      {isEditingSettings && (
-        <EditBookModal
-          project={activeProject}
-          onClose={() => setIsEditingSettings(false)}
-          onSave={updateProjectDetails}
-        />
+      {isEditingSpecs && (
+        <div className="cafe-modal-backdrop">
+          <div className="cafe-modal small">
+            <div className="modal-title-row">
+              <h3>Paper Textures</h3>
+              <button
+                className="close-modal-btn"
+                onClick={() => setIsEditingSpecs(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="paper-tasting-grid">
+              {PAPERS.map((p) => (
+                <div
+                  key={p.id}
+                  className={`paper-choice-pill ${
+                    activeProject.paperId === p.id ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    setProjects((prev) =>
+                      prev.map((proj) =>
+                        proj.id === activeProjectId
+                          ? { ...proj, paperId: p.id }
+                          : proj
+                      )
+                    );
+                  }}
+                >
+                  <div
+                    className="paper-color-dot"
+                    style={{
+                      backgroundColor: p.bg,
+                      border: `1px solid ${p.border}`,
+                    }}
+                  />
+                  <div className="paper-meta">
+                    <span className="name">{p.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="modal-footer-btns">
+              <button
+                className="cafe-btn primary"
+                onClick={() => setIsEditingSpecs(false)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

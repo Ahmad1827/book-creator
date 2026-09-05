@@ -1,26 +1,3 @@
-export interface BookFormat {
-  id: "square" | "landscape" | "portrait";
-  label: string;
-  pageWidth: number;
-  pageHeight: number;
-  aspectRatio: string;
-  description: string;
-}
-
-export interface BookTheme {
-  id: string;
-  name: string;
-  subtitle: string;
-  coverColor: string;
-  coverTexture: string;
-  pageBackground: string;
-  pageOverlayStyle: string;
-  spineGutterColor: string;
-  primaryFont: string;
-  textColor: string;
-  accentColor: string;
-}
-
 export interface BookSpread {
   id: string;
   leftPageNum: number;
@@ -28,18 +5,20 @@ export interface BookSpread {
   canvasData: any | null;
 }
 
+export interface PaperStyle {
+  id: "latte" | "steamed-milk" | "matcha-creme" | "dark-mocha";
+  name: string;
+  bg: string;
+  ink: string;
+  spine: string;
+  border: string;
+}
+
 export interface BookProject {
   id: string;
   title: string;
   author: string;
-  formatId: "square" | "landscape" | "portrait";
-  themeId: string;
+  paperId: PaperStyle["id"];
   spreads: BookSpread[];
   createdAt: string;
-}
-
-export interface FontOption {
-  family: string;
-  label: string;
-  category: "Playful" | "Handwritten" | "Storybook";
 }
