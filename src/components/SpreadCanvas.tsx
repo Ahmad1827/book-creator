@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from "react";
 import { Canvas, PencilBrush } from "fabric";
-import { BookTheme } from "../types";
+import { BookTheme, BookFormat } from "../types";
 
 interface SpreadCanvasProps {
   theme: BookTheme;
+  format: BookFormat;
   mode: "select" | "draw";
   brushColor: string;
   brushSize: number;
@@ -16,6 +17,7 @@ interface SpreadCanvasProps {
 
 export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   theme,
+  format,
   mode,
   brushColor,
   brushSize,
@@ -28,12 +30,15 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
   const fabricRef = useRef<Canvas | null>(null);
 
+  const spreadWidth = format.pageWidth * 2;
+  const spreadHeight = format.pageHeight;
+
   useEffect(() => {
     if (!canvasElRef.current) return;
 
     const canvas = new Canvas(canvasElRef.current, {
-      width: 1400,
-      height: 700,
+      width: spreadWidth,
+      height: spreadHeight,
       backgroundColor: theme.pageBackground,
       isDrawingMode: mode === "draw",
       selection: true,
@@ -61,7 +66,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     return () => {
       canvas.dispose();
     };
-  }, []);
+  }, [spreadWidth, spreadHeight]);
 
   useEffect(() => {
     const canvas = fabricRef.current;
@@ -82,20 +87,50 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   }, [theme]);
 
   return (
-    <div className={`spread-perspective-stage ${flipDirection ? `turn-${flipDirection}` : ""}`}>
-      <div className="spread-frame-container" style={{ borderColor: theme.borderColor }}>
-        <div className={`page-focus-indicator left ${activeSide === "left" ? "focused" : ""}`} />
-        <div className={`page-focus-indicator right ${activeSide === "right" ? "focused" : ""}`} />
+    <div
+      className={`grand-book-case ${flipDirection ? `turning-${flipDirection}` : ""}`}
+      style={{
+        width: `${spreadWidth + 60}px`,
+        height: `${spreadHeight + 50}px`,
+        background: theme.coverTexture,
+      }}
+    >
+      <div className="headband headband-top" />
+      <div className="headband headband-bottom" />
 
-        <div className="canvas-wrapper">
+      <div className="pages-depth-stack left-stack" />
+      <div className="pages-depth-stack right-stack" />
+
+      <div
+        className="book-leaf-block"
+        style={{
+          width: `${spreadWidth}px`,
+          height: `${spreadHeight}px`,
+          background: theme.pageBackground,
+        }}
+      >
+        <div className="paper-grain-overlay" style={{ background: theme.pageOverlayStyle }} />
+
+        <div className={`page-side-zone left ${activeSide === "left" ? "focused" : ""}`} />
+        <div className={`page-side-zone right ${activeSide === "right" ? "focused" : ""}`} />
+
+        <div className="fabric-canvas-container">
           <canvas ref={canvasElRef} />
         </div>
 
-        <div className="spine-divider" style={{ background: theme.spineColor }}>
-          <div className="spine-crease-shadow" />
-        </div>
+        <div className="book-gutter-shadow" />
+        <div className="book-spine-crease" style={{ background: theme.spineGutterColor }} />
 
-        <div className="page-flip-flap" style={{ background: theme.pageBackground }} />
+        <div
+          className="dynamic-turn-leaf"
+          style={{
+            background: theme.pageBackground,
+            width: `${format.pageWidth}px`,
+            height: `${spreadHeight}px`,
+          }}
+        >
+          <div className="paper-grain-overlay" style={{ background: theme.pageOverlayStyle }} />
+        </div>
       </div>
     </div>
   );

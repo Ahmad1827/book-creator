@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { Canvas, IText } from "fabric";
 import { SpreadCanvas } from "./components/SpreadCanvas";
-import { BookSpread } from "./types";
-import { FONTS, THEMES, COLOR_PALETTE } from "./constants";
+import { ProjectHub } from "./components/ProjectHub";
+import { EditBookModal } from "./components/EditBookModal";
+import { BookProject, BookFormat } from "./types";
+import { BOOK_FORMATS, BOOK_THEMES, FONTS, COLOR_PALETTE } from "./constants";
 import { exportBookToPdf } from "./utils/pdfExport";
 import "./App.css";
 
 export default function App() {
-  const [spreads, setSpreads] = useState<BookSpread[]>([
-    { id: "spread-1", leftPageNum: 1, rightPageNum: 2, canvasData: null, themeId: "midnight" },
-    { id: "spread-2", leftPageNum: 3, rightPageNum: 4, canvasData: null, themeId: "midnight" },
-  ]);
+  const [projects, setProjects] = useState<BookProject[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   const [activePageNum, setActivePageNum] = useState<number>(1);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
@@ -19,40 +19,108 @@ export default function App() {
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
 
   const [mode, setMode] = useState<"select" | "draw">("select");
-  const [brushColor, setBrushColor] = useState<string>("#e2e8f0");
-  const [brushSize, setBrushSize] = useState<number>(5);
+  const [brushColor, setBrushColor] = useState<string>("#333333");
+  const [brushSize, setBrushSize] = useState<number>(6);
 
-  const [selectedFont, setSelectedFont] = useState<string>("Fredoka");
+  const [selectedFont, setSelectedFont] = useState<string>("Lora");
   const [fontSize, setFontSize] = useState<number>(36);
-  const [textColor, setTextColor] = useState<string>("#f8fafc");
+  const [textColor, setTextColor] = useState<string>("#2a1b12");
 
-  const activeSpread =
-    spreads.find((s) => s.leftPageNum === activePageNum || s.rightPageNum === activePageNum) ||
-    spreads[0];
-  const activeSide: "left" | "right" = activePageNum === activeSpread.leftPageNum ? "left" : "right";
-  const currentTheme = THEMES.find((t) => t.id === activeSpread.themeId) || THEMES[0];
+  const [isEditingSettings, setIsEditingSettings] = useState<boolean>(false);
 
-  const totalPages = spreads.length * 2;
+  const activeProject = projects.find((p) => p.id === activeProjectId) || null;
+  const currentFormat = activeProject
+    ? BOOK_FORMATS.find((f) => f.id === activeProject.formatId) || BOOK_FORMATS[0]
+    : BOOK_FORMATS[0];
+  const currentTheme = activeProject
+    ? BOOK_THEMES.find((t) => t.id === activeProject.themeId) || BOOK_THEMES[0]
+    : BOOK_THEMES[0];
+
+  const activeSpread = activeProject
+    ? activeProject.spreads.find(
+        (s) => s.leftPageNum === activePageNum || s.rightPageNum === activePageNum
+      ) || activeProject.spreads[0]
+    : null;
+
+  const activeSide: "left" | "right" =
+    activeSpread && activePageNum === activeSpread.leftPageNum ? "left" : "right";
+  const totalPages = activeProject ? activeProject.spreads.length * 2 : 0;
   const pageList = Array.from({ length: totalPages }, (_, i) => i + 1);
 
+  const createNewProject = (
+    title: string,
+    author: string,
+    formatId: BookFormat["id"],
+    themeId: string
+  ) => {
+    const newProject: BookProject = {
+      id: `book-${Date.now()}`,
+      title,
+      author,
+      formatId,
+      themeId,
+      createdAt: new Date().toLocaleDateString(),
+      spreads: [
+        { id: "spread-1", leftPageNum: 1, rightPageNum: 2, canvasData: null },
+        { id: "spread-2", leftPageNum: 3, rightPageNum: 4, canvasData: null },
+      ],
+    };
+    setProjects((prev) => [...prev, newProject]);
+    setActiveProjectId(newProject.id);
+    setActivePageNum(1);
+    const selTheme = BOOK_THEMES.find((t) => t.id === themeId) || BOOK_THEMES[0];
+    setTextColor(selTheme.textColor);
+    setBrushColor(selTheme.textColor);
+    setSelectedFont(selTheme.primaryFont);
+  };
+
+  const deleteProject = (id: string) => {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    if (activeProjectId === id) setActiveProjectId(null);
+  };
+
+  const updateProjectDetails = (updated: Partial<BookProject>) => {
+    if (!activeProjectId) return;
+    setProjects((prev) =>
+      prev.map((p) => (p.id === activeProjectId ? { ...p, ...updated } : p))
+    );
+  };
+
   const saveActiveSpread = () => {
-    if (!activeCanvas) return;
+    if (!activeCanvas || !activeProject || !activeSpread) return;
     const json = activeCanvas.toJSON();
-    setSpreads((prev) =>
-      prev.map((s) => (s.id === activeSpread.id ? { ...s, canvasData: json } : s))
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === activeProjectId
+          ? {
+              ...p,
+              spreads: p.spreads.map((s) =>
+                s.id === activeSpread.id ? { ...s, canvasData: json } : s
+              ),
+            }
+          : p
+      )
     );
   };
 
   const navigateToPage = (targetPage: number) => {
-    if (targetPage === activePageNum || targetPage < 1 || targetPage > totalPages) return;
+    if (
+      !activeProject ||
+      !activeSpread ||
+      targetPage === activePageNum ||
+      targetPage < 1 ||
+      targetPage > totalPages
+    )
+      return;
 
     saveActiveSpread();
     const direction = targetPage > activePageNum ? "next" : "prev";
     setFlipDirection(direction);
 
     const targetSpread =
-      spreads.find((s) => s.leftPageNum === targetPage || s.rightPageNum === targetPage) ||
-      spreads[0];
+      activeProject.spreads.find(
+        (s) => s.leftPageNum === targetPage || s.rightPageNum === targetPage
+      ) || activeProject.spreads[0];
 
     const needsCanvasSwap = targetSpread.id !== activeSpread.id;
 
@@ -63,56 +131,58 @@ export default function App() {
         activeCanvas.discardActiveObject();
         if (targetSpread.canvasData) {
           activeCanvas.loadFromJSON(targetSpread.canvasData).then(() => {
-            const targetTheme = THEMES.find((t) => t.id === targetSpread.themeId) || THEMES[0];
-            activeCanvas.backgroundColor = targetTheme.pageBackground;
+            activeCanvas.backgroundColor = currentTheme.pageBackground;
             activeCanvas.renderAll();
           });
         } else {
           activeCanvas.clear();
-          const targetTheme = THEMES.find((t) => t.id === targetSpread.themeId) || THEMES[0];
-          activeCanvas.backgroundColor = targetTheme.pageBackground;
+          activeCanvas.backgroundColor = currentTheme.pageBackground;
           activeCanvas.renderAll();
         }
       }
-    }, 200);
+    }, 220);
 
     setTimeout(() => {
       setFlipDirection(null);
     }, 600);
   };
 
-  const addNewPagePair = () => {
+  const addSpreadPages = () => {
+    if (!activeProject) return;
     saveActiveSpread();
-    const lastSpread = spreads[spreads.length - 1];
+    const lastSpread = activeProject.spreads[activeProject.spreads.length - 1];
     const newLeft = lastSpread.rightPageNum + 1;
     const newRight = newLeft + 1;
-    const newSpread: BookSpread = {
+    const newSpread = {
       id: `spread-${Date.now()}`,
       leftPageNum: newLeft,
       rightPageNum: newRight,
       canvasData: null,
-      themeId: activeSpread.themeId,
     };
 
-    setSpreads((prev) => [...prev, newSpread]);
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === activeProjectId ? { ...p, spreads: [...p.spreads, newSpread] } : p
+      )
+    );
     navigateToPage(newLeft);
   };
 
   const addStoryText = () => {
-    if (!activeCanvas) return;
+    if (!activeCanvas || !currentFormat) return;
 
-    const posX = activeSide === "left" ? 180 : 880;
-    const text = new IText("Write your dark night story here...", {
+    const posX = activeSide === "left" ? 120 : currentFormat.pageWidth + 100;
+    const text = new IText("Begin your story here...", {
       left: posX,
-      top: 250,
+      top: 180,
       fontFamily: selectedFont,
       fontSize: fontSize,
-      fill: currentTheme.textColor,
-      width: 380,
-      lineHeight: 1.3,
+      fill: textColor,
+      width: currentFormat.pageWidth - 220,
+      lineHeight: 1.35,
       padding: 8,
-      borderColor: "#6366f1",
-      cornerColor: "#818cf8",
+      borderColor: currentTheme.accentColor,
+      cornerColor: currentTheme.accentColor,
       cornerStyle: "circle",
       cornerSize: 9,
       transparentCorners: false,
@@ -151,94 +221,101 @@ export default function App() {
   };
 
   const handleExportPdf = async () => {
-    if (!activeCanvas) return;
-    const pdfBytes = await exportBookToPdf(spreads, activeCanvas, activeSpread.id);
+    if (!activeCanvas || !activeProject || !activeSpread) return;
+    const pdfBytes = await exportBookToPdf(
+      activeProject.spreads.map((s) => ({ ...s, themeId: activeProject.themeId })),
+      activeCanvas,
+      activeSpread.id
+    );
     const blob = new Blob([pdfBytes], { type: "application/pdf" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "Childrens_Book_DarkStudio.pdf";
+    link.download = `${activeProject.title.replace(/\s+/g, "_")}_PrintReady.pdf`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
 
+  if (!activeProject || !activeSpread) {
+    return (
+      <ProjectHub
+        projects={projects}
+        onOpenProject={(proj) => {
+          setActiveProjectId(proj.id);
+          setActivePageNum(1);
+        }}
+        onCreateProject={createNewProject}
+        onDeleteProject={deleteProject}
+      />
+    );
+  }
+
   return (
-    <div className="dark-studio-root">
-      <header className="dark-navbar">
-        <div className="navbar-brand">
-          <div className="brand-dot" />
-          <span className="brand-title">NOCTURNE STUDIO</span>
-          <span className="brand-subtitle">Children's Book Workshop</span>
+    <div className="studio-app-screen">
+      <header className="studio-head-nav">
+        <div className="head-left-group">
+          <button className="nav-back-shelf-btn" onClick={() => setActiveProjectId(null)}>
+            &#8592; Bookshelf
+          </button>
+          <div className="project-title-badge">
+            <span className="book-name-title">{activeProject.title}</span>
+            <span className="book-theme-subtitle">
+              {currentFormat.label} • {currentTheme.name}
+            </span>
+          </div>
+          <button className="nav-edit-specs-btn" onClick={() => setIsEditingSettings(true)}>
+            Edit Specs
+          </button>
         </div>
 
-        <div className="navbar-controls">
-          <div className="theme-cluster">
-            <span className="nav-label">THEME</span>
-            <div className="theme-pills-row">
-              {THEMES.map((theme) => (
-                <button
-                  key={theme.id}
-                  className={`theme-pill ${theme.id === activeSpread.themeId ? "selected" : ""}`}
-                  onClick={() => {
-                    setSpreads((prev) =>
-                      prev.map((s) => (s.id === activeSpread.id ? { ...s, themeId: theme.id } : s))
-                    );
-                  }}
-                >
-                  <span className="theme-dot" style={{ background: theme.pageBackground }} />
-                  {theme.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button className="export-action-btn" onClick={handleExportPdf}>
-            Export Print PDF
+        <div className="head-right-group">
+          <button className="master-export-btn" onClick={handleExportPdf}>
+            Export 300 DPI PDF
           </button>
         </div>
       </header>
 
-      <div className="workspace-core">
-        <aside className="dark-sidebar">
-          <div className="sidebar-group">
-            <span className="group-label">CANVAS MODE</span>
-            <div className="segmented-control">
+      <div className="studio-editor-workspace">
+        <aside className="editor-control-panel">
+          <div className="panel-section">
+            <span className="section-kicker">Workspace Mode</span>
+            <div className="pill-mode-switch">
               <button
-                className={`segment-btn ${mode === "select" ? "active" : ""}`}
+                className={`mode-btn ${mode === "select" ? "active" : ""}`}
                 onClick={() => setMode("select")}
               >
-                Pointer
+                Pointer / Arrange
               </button>
               <button
-                className={`segment-btn ${mode === "draw" ? "active" : ""}`}
+                className={`mode-btn ${mode === "draw" ? "active" : ""}`}
                 onClick={() => setMode("draw")}
               >
-                Draw
+                Hand Illustration
               </button>
             </div>
           </div>
 
           {mode === "draw" ? (
-            <div className="sidebar-group">
-              <span className="group-label">BRUSH PROPERTIES</span>
-              <div className="slider-row">
+            <div className="panel-section">
+              <span className="section-kicker">Drawing Instrument</span>
+              <div className="row-slider-label">
                 <span>Thickness</span>
                 <span>{brushSize}px</span>
               </div>
               <input
                 type="range"
-                className="dark-range"
+                className="custom-range"
                 min="2"
-                max="50"
+                max="60"
                 value={brushSize}
                 onChange={(e) => setBrushSize(Number(e.target.value))}
               />
 
-              <span className="group-label palette-label">INK PALETTE</span>
-              <div className="swatch-grid">
+              <span className="section-kicker sub-kicker">Pigment Palette</span>
+              <div className="swatch-palette-matrix">
                 {COLOR_PALETTE.map((color) => (
                   <button
                     key={color}
-                    className={`swatch-btn ${brushColor === color ? "active" : ""}`}
+                    className={`palette-swatch-circle ${brushColor === color ? "active" : ""}`}
                     style={{ background: color }}
                     onClick={() => setBrushColor(color)}
                   />
@@ -246,18 +323,18 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="sidebar-group">
-              <span className="group-label">TYPOGRAPHY</span>
-              <button className="add-text-btn" onClick={addStoryText}>
+            <div className="panel-section">
+              <span className="section-kicker">Story Typography</span>
+              <button className="add-passage-btn" onClick={addStoryText}>
                 + Add Text to Page {activePageNum}
               </button>
 
               {selectedObject && selectedObject.type === "i-text" && (
-                <div className="text-editor-fields">
-                  <div className="field-block">
-                    <label>Font Family</label>
+                <div className="type-inspector-box">
+                  <div className="input-field-block">
+                    <label>Story Font</label>
                     <select
-                      className="dark-select"
+                      className="styled-select"
                       value={selectedFont}
                       onChange={(e) => {
                         setSelectedFont(e.target.value);
@@ -272,15 +349,15 @@ export default function App() {
                     </select>
                   </div>
 
-                  <div className="field-block">
-                    <div className="slider-row">
+                  <div className="input-field-block">
+                    <div className="row-slider-label">
                       <span>Size</span>
                       <span>{fontSize}px</span>
                     </div>
                     <input
                       type="range"
-                      className="dark-range"
-                      min="18"
+                      className="custom-range"
+                      min="16"
                       max="80"
                       value={fontSize}
                       onChange={(e) => {
@@ -290,13 +367,13 @@ export default function App() {
                     />
                   </div>
 
-                  <div className="field-block">
-                    <label>Text Color</label>
-                    <div className="swatch-grid">
+                  <div className="input-field-block">
+                    <label>Ink Color</label>
+                    <div className="swatch-palette-matrix">
                       {COLOR_PALETTE.map((color) => (
                         <button
                           key={color}
-                          className={`swatch-btn ${textColor === color ? "active" : ""}`}
+                          className={`palette-swatch-circle ${textColor === color ? "active" : ""}`}
                           style={{ background: color }}
                           onClick={() => {
                             setTextColor(color);
@@ -311,66 +388,68 @@ export default function App() {
             </div>
           )}
 
-          <div className="sidebar-bottom-actions">
-            <button className="subtle-btn" onClick={undoLastAction}>
-              Undo
+          <div className="panel-bottom-tools">
+            <button className="subtle-tool-btn" onClick={undoLastAction}>
+              Undo Stroke
             </button>
             <button
-              className="danger-btn"
+              className="danger-tool-btn"
               disabled={!selectedObject}
               onClick={deleteActiveObject}
             >
-              Delete
+              Delete Element
             </button>
           </div>
         </aside>
 
-        <main className="stage-viewport">
-          <div className="stage-top-indicator">
+        <main className="editor-center-stage">
+          <div className="spread-navigation-header">
             <button
-              className="nav-arrow-btn"
+              className="page-nav-arrow"
               disabled={activePageNum === 1}
               onClick={() => navigateToPage(activePageNum - 1)}
             >
-              &#8592; Prev Page
+              &#8592; Previous
             </button>
-
-            <div className="page-status-pill">
-              Editing <span className="highlight-text">Page {activePageNum}</span> of {totalPages}
+            <div className="real-book-tag">
+              Viewing Pages <span className="highlight-pill">{activeSpread.leftPageNum}</span> &{" "}
+              <span className="highlight-pill">{activeSpread.rightPageNum}</span> of {totalPages}
             </div>
-
             <button
-              className="nav-arrow-btn"
+              className="page-nav-arrow"
               disabled={activePageNum === totalPages}
               onClick={() => navigateToPage(activePageNum + 1)}
             >
-              Next Page &#8594;
+              Next &#8594;
             </button>
           </div>
 
-          <SpreadCanvas
-            theme={currentTheme}
-            mode={mode}
-            brushColor={brushColor}
-            brushSize={brushSize}
-            canvasData={activeSpread.canvasData}
-            activeSide={activeSide}
-            flipDirection={flipDirection}
-            onCanvasReady={setActiveCanvas}
-            onSelectionChange={setSelectedObject}
-          />
+          <div className="book-centering-wrapper">
+            <SpreadCanvas
+              theme={currentTheme}
+              format={currentFormat}
+              mode={mode}
+              brushColor={brushColor}
+              brushSize={brushSize}
+              canvasData={activeSpread.canvasData}
+              activeSide={activeSide}
+              flipDirection={flipDirection}
+              onCanvasReady={setActiveCanvas}
+              onSelectionChange={setSelectedObject}
+            />
+          </div>
         </main>
       </div>
 
-      <footer className="page-carousel-dock">
-        <div className="dock-meta-row">
-          <span className="dock-title">PAGES NAVIGATION</span>
-          <button className="add-page-pill-btn" onClick={addNewPagePair}>
+      <footer className="editor-single-page-bar">
+        <div className="bar-title-cluster">
+          <span className="bar-tag">PAGE JUMP</span>
+          <button className="add-spread-mini-btn" onClick={addSpreadPages}>
             + Add 2 Pages
           </button>
         </div>
 
-        <div className="page-tiles-track">
+        <div className="page-ribbon-carousel">
           {pageList.map((pageNum) => {
             const isLeft = pageNum % 2 === 1;
             const isSelected = pageNum === activePageNum;
@@ -378,22 +457,29 @@ export default function App() {
             return (
               <div
                 key={pageNum}
-                className={`page-tile-item ${isSelected ? "selected" : ""}`}
+                className={`page-single-tab ${isSelected ? "selected" : ""}`}
                 onClick={() => navigateToPage(pageNum)}
               >
-                <div className={`tile-leaf ${isLeft ? "left-leaf" : "right-leaf"}`}>
-                  <div className="leaf-content-indicator">
-                    <div className="mock-line" />
-                    <div className="mock-line short" />
-                  </div>
-                  <span className="tile-leaf-num">{pageNum}</span>
+                <div
+                  className={`tab-card-shape ${isLeft ? "left-edge" : "right-edge"}`}
+                  style={{ background: currentTheme.pageBackground }}
+                >
+                  <span className="tab-number">{pageNum}</span>
                 </div>
-                <span className="tile-sublabel">{isLeft ? "Left Page" : "Right Page"}</span>
+                <span className="tab-position-label">{isLeft ? "L" : "R"}</span>
               </div>
             );
           })}
         </div>
       </footer>
+
+      {isEditingSettings && (
+        <EditBookModal
+          project={activeProject}
+          onClose={() => setIsEditingSettings(false)}
+          onSave={updateProjectDetails}
+        />
+      )}
     </div>
   );
 }
