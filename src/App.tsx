@@ -1,106 +1,120 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Canvas, IText } from "fabric";
 import { SpreadCanvas } from "./components/SpreadCanvas";
-import { BookSpread, BookTheme } from "./types";
+import { BookSpread } from "./types";
 import { FONTS, THEMES, COLOR_PALETTE } from "./constants";
 import { exportBookToPdf } from "./utils/pdfExport";
 import "./App.css";
 
 export default function App() {
   const [spreads, setSpreads] = useState<BookSpread[]>([
-    { id: "spread-1", leftPageNum: 1, rightPageNum: 2, canvasData: null, themeId: "parchment" },
-    { id: "spread-2", leftPageNum: 3, rightPageNum: 4, canvasData: null, themeId: "parchment" },
+    { id: "spread-1", leftPageNum: 1, rightPageNum: 2, canvasData: null, themeId: "midnight" },
+    { id: "spread-2", leftPageNum: 3, rightPageNum: 4, canvasData: null, themeId: "midnight" },
   ]);
-  const [activeSpreadId, setActiveSpreadId] = useState<string>("spread-1");
+
+  const [activePageNum, setActivePageNum] = useState<number>(1);
+  const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
 
   const [activeCanvas, setActiveCanvas] = useState<Canvas | null>(null);
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
 
   const [mode, setMode] = useState<"select" | "draw">("select");
-  const [brushColor, setBrushColor] = useState<string>("#2c1d11");
+  const [brushColor, setBrushColor] = useState<string>("#e2e8f0");
   const [brushSize, setBrushSize] = useState<number>(5);
 
   const [selectedFont, setSelectedFont] = useState<string>("Fredoka");
   const [fontSize, setFontSize] = useState<number>(36);
-  const [textColor, setTextColor] = useState<string>("#2c1d11");
+  const [textColor, setTextColor] = useState<string>("#f8fafc");
 
-  const currentSpread = spreads.find((s) => s.id === activeSpreadId) || spreads[0];
-  const currentTheme = THEMES.find((t) => t.id === currentSpread.themeId) || THEMES[0];
+  const activeSpread =
+    spreads.find((s) => s.leftPageNum === activePageNum || s.rightPageNum === activePageNum) ||
+    spreads[0];
+  const activeSide: "left" | "right" = activePageNum === activeSpread.leftPageNum ? "left" : "right";
+  const currentTheme = THEMES.find((t) => t.id === activeSpread.themeId) || THEMES[0];
 
-  const saveActiveSpreadState = () => {
+  const totalPages = spreads.length * 2;
+  const pageList = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+  const saveActiveSpread = () => {
     if (!activeCanvas) return;
     const json = activeCanvas.toJSON();
     setSpreads((prev) =>
-      prev.map((s) => (s.id === activeSpreadId ? { ...s, canvasData: json } : s))
+      prev.map((s) => (s.id === activeSpread.id ? { ...s, canvasData: json } : s))
     );
   };
 
-  const switchSpread = (targetId: string) => {
-    if (targetId === activeSpreadId || !activeCanvas) return;
-    saveActiveSpreadState();
+  const navigateToPage = (targetPage: number) => {
+    if (targetPage === activePageNum || targetPage < 1 || targetPage > totalPages) return;
 
-    const targetSpread = spreads.find((s) => s.id === targetId);
-    if (!targetSpread) return;
+    saveActiveSpread();
+    const direction = targetPage > activePageNum ? "next" : "prev";
+    setFlipDirection(direction);
 
-    setActiveSpreadId(targetId);
-    activeCanvas.discardActiveObject();
+    const targetSpread =
+      spreads.find((s) => s.leftPageNum === targetPage || s.rightPageNum === targetPage) ||
+      spreads[0];
 
-    if (targetSpread.canvasData) {
-      activeCanvas.loadFromJSON(targetSpread.canvasData).then(() => {
-        const targetTheme = THEMES.find((t) => t.id === targetSpread.themeId) || THEMES[0];
-        activeCanvas.backgroundColor = targetTheme.pageBackground;
-        activeCanvas.renderAll();
-      });
-    } else {
-      activeCanvas.clear();
-      const targetTheme = THEMES.find((t) => t.id === targetSpread.themeId) || THEMES[0];
-      activeCanvas.backgroundColor = targetTheme.pageBackground;
-      activeCanvas.renderAll();
-    }
+    const needsCanvasSwap = targetSpread.id !== activeSpread.id;
+
+    setTimeout(() => {
+      setActivePageNum(targetPage);
+
+      if (needsCanvasSwap && activeCanvas) {
+        activeCanvas.discardActiveObject();
+        if (targetSpread.canvasData) {
+          activeCanvas.loadFromJSON(targetSpread.canvasData).then(() => {
+            const targetTheme = THEMES.find((t) => t.id === targetSpread.themeId) || THEMES[0];
+            activeCanvas.backgroundColor = targetTheme.pageBackground;
+            activeCanvas.renderAll();
+          });
+        } else {
+          activeCanvas.clear();
+          const targetTheme = THEMES.find((t) => t.id === targetSpread.themeId) || THEMES[0];
+          activeCanvas.backgroundColor = targetTheme.pageBackground;
+          activeCanvas.renderAll();
+        }
+      }
+    }, 200);
+
+    setTimeout(() => {
+      setFlipDirection(null);
+    }, 600);
   };
 
-  const addSpread = () => {
-    saveActiveSpreadState();
+  const addNewPagePair = () => {
+    saveActiveSpread();
     const lastSpread = spreads[spreads.length - 1];
-    const newLeft = lastSpread ? lastSpread.rightPageNum + 1 : 1;
+    const newLeft = lastSpread.rightPageNum + 1;
     const newRight = newLeft + 1;
-    const newId = `spread-${Date.now()}`;
-
     const newSpread: BookSpread = {
-      id: newId,
+      id: `spread-${Date.now()}`,
       leftPageNum: newLeft,
       rightPageNum: newRight,
       canvasData: null,
-      themeId: currentSpread.themeId,
+      themeId: activeSpread.themeId,
     };
 
     setSpreads((prev) => [...prev, newSpread]);
-    setActiveSpreadId(newId);
-
-    if (activeCanvas) {
-      activeCanvas.clear();
-      activeCanvas.backgroundColor = currentTheme.pageBackground;
-      activeCanvas.renderAll();
-    }
+    navigateToPage(newLeft);
   };
 
-  const addStoryText = (pageSide: "left" | "right") => {
+  const addStoryText = () => {
     if (!activeCanvas) return;
 
-    const posX = pageSide === "left" ? 180 : 880;
-    const text = new IText("Write your magical story here...", {
+    const posX = activeSide === "left" ? 180 : 880;
+    const text = new IText("Write your dark night story here...", {
       left: posX,
       top: 250,
       fontFamily: selectedFont,
       fontSize: fontSize,
-      fill: textColor,
-      width: 400,
+      fill: currentTheme.textColor,
+      width: 380,
       lineHeight: 1.3,
-      padding: 10,
-      borderColor: "#4a90e2",
-      cornerColor: "#4a90e2",
+      padding: 8,
+      borderColor: "#6366f1",
+      cornerColor: "#818cf8",
       cornerStyle: "circle",
-      cornerSize: 10,
+      cornerSize: 9,
       transparentCorners: false,
     });
 
@@ -116,19 +130,13 @@ export default function App() {
     activeCanvas.renderAll();
   };
 
-  const handleFontChange = (font: string) => {
-    setSelectedFont(font);
-    updateSelectedText("fontFamily", font);
-  };
-
-  const handleFontSizeChange = (size: number) => {
-    setFontSize(size);
-    updateSelectedText("fontSize", size);
-  };
-
-  const handleTextColorChange = (color: string) => {
-    setTextColor(color);
-    updateSelectedText("fill", color);
+  const undoLastAction = () => {
+    if (!activeCanvas) return;
+    const objects = activeCanvas.getObjects();
+    if (objects.length > 0) {
+      activeCanvas.remove(objects[objects.length - 1]);
+      activeCanvas.renderAll();
+    }
   };
 
   const deleteActiveObject = () => {
@@ -142,160 +150,158 @@ export default function App() {
     }
   };
 
-  const undoLastAction = () => {
-    if (!activeCanvas) return;
-    const objects = activeCanvas.getObjects();
-    if (objects.length > 0) {
-      activeCanvas.remove(objects[objects.length - 1]);
-      activeCanvas.renderAll();
-    }
-  };
-
   const handleExportPdf = async () => {
     if (!activeCanvas) return;
-    const pdfBytes = await exportBookToPdf(spreads, activeCanvas, activeSpreadId);
+    const pdfBytes = await exportBookToPdf(spreads, activeCanvas, activeSpread.id);
     const blob = new Blob([pdfBytes], { type: "application/pdf" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "Childrens_Book_PrintReady.pdf";
+    link.download = "Childrens_Book_DarkStudio.pdf";
     link.click();
     URL.revokeObjectURL(link.href);
   };
 
   return (
-    <div className="studio-root">
-      <header className="studio-navbar">
+    <div className="dark-studio-root">
+      <header className="dark-navbar">
         <div className="navbar-brand">
-          <span className="brand-badge">Book Studio</span>
-          <h2>Children's Book Maker</h2>
+          <div className="brand-dot" />
+          <span className="brand-title">NOCTURNE STUDIO</span>
+          <span className="brand-subtitle">Children's Book Workshop</span>
         </div>
 
-        <div className="navbar-actions">
-          <div className="theme-selector-group">
-            <span className="control-label">Theme:</span>
-            <div className="theme-pills">
+        <div className="navbar-controls">
+          <div className="theme-cluster">
+            <span className="nav-label">THEME</span>
+            <div className="theme-pills-row">
               {THEMES.map((theme) => (
                 <button
                   key={theme.id}
-                  className={`theme-pill-btn ${theme.id === currentSpread.themeId ? "active" : ""}`}
-                  style={{ background: theme.pageBackground }}
+                  className={`theme-pill ${theme.id === activeSpread.themeId ? "selected" : ""}`}
                   onClick={() => {
                     setSpreads((prev) =>
-                      prev.map((s) => (s.id === activeSpreadId ? { ...s, themeId: theme.id } : s))
+                      prev.map((s) => (s.id === activeSpread.id ? { ...s, themeId: theme.id } : s))
                     );
                   }}
                 >
-                  <span className="theme-color-dot" style={{ background: theme.spineColor }} />
+                  <span className="theme-dot" style={{ background: theme.pageBackground }} />
                   {theme.name}
                 </button>
               ))}
             </div>
           </div>
 
-          <button className="primary-export-btn" onClick={handleExportPdf}>
+          <button className="export-action-btn" onClick={handleExportPdf}>
             Export Print PDF
           </button>
         </div>
       </header>
 
-      <div className="studio-workspace">
-        <aside className="toolbox-sidebar">
-          <div className="toolbox-section">
-            <span className="section-title">Mode</span>
-            <div className="tool-button-stack">
+      <div className="workspace-core">
+        <aside className="dark-sidebar">
+          <div className="sidebar-group">
+            <span className="group-label">CANVAS MODE</span>
+            <div className="segmented-control">
               <button
-                className={`tool-action-btn ${mode === "select" ? "active" : ""}`}
+                className={`segment-btn ${mode === "select" ? "active" : ""}`}
                 onClick={() => setMode("select")}
               >
-                Pointer / Select
+                Pointer
               </button>
               <button
-                className={`tool-action-btn ${mode === "draw" ? "active" : ""}`}
+                className={`segment-btn ${mode === "draw" ? "active" : ""}`}
                 onClick={() => setMode("draw")}
               >
-                Drawing Brush
+                Draw
               </button>
             </div>
           </div>
 
           {mode === "draw" ? (
-            <div className="toolbox-section">
-              <span className="section-title">Brush Settings</span>
-              <div className="brush-slider-control">
-                <label>Size: {brushSize}px</label>
-                <input
-                  type="range"
-                  min="2"
-                  max="60"
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(Number(e.target.value))}
-                />
+            <div className="sidebar-group">
+              <span className="group-label">BRUSH PROPERTIES</span>
+              <div className="slider-row">
+                <span>Thickness</span>
+                <span>{brushSize}px</span>
               </div>
+              <input
+                type="range"
+                className="dark-range"
+                min="2"
+                max="50"
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+              />
 
-              <span className="sub-label">Palette</span>
-              <div className="palette-grid">
-                {COLOR_PALETTE.map((c) => (
+              <span className="group-label palette-label">INK PALETTE</span>
+              <div className="swatch-grid">
+                {COLOR_PALETTE.map((color) => (
                   <button
-                    key={c}
-                    className={`palette-swatch ${brushColor === c ? "selected" : ""}`}
-                    style={{ background: c }}
-                    onClick={() => setBrushColor(c)}
+                    key={color}
+                    className={`swatch-btn ${brushColor === color ? "active" : ""}`}
+                    style={{ background: color }}
+                    onClick={() => setBrushColor(color)}
                   />
                 ))}
-                <input
-                  type="color"
-                  className="palette-custom-input"
-                  value={brushColor}
-                  onChange={(e) => setBrushColor(e.target.value)}
-                />
               </div>
             </div>
           ) : (
-            <div className="toolbox-section">
-              <span className="section-title">Add Story Text</span>
-              <div className="text-spawn-buttons">
-                <button onClick={() => addStoryText("left")}>+ Left Page Text</button>
-                <button onClick={() => addStoryText("right")}>+ Right Page Text</button>
-              </div>
+            <div className="sidebar-group">
+              <span className="group-label">TYPOGRAPHY</span>
+              <button className="add-text-btn" onClick={addStoryText}>
+                + Add Text to Page {activePageNum}
+              </button>
 
               {selectedObject && selectedObject.type === "i-text" && (
-                <div className="typography-inspector">
-                  <span className="section-title">Typography</span>
-                  <div className="control-field">
-                    <label>Story Font</label>
+                <div className="text-editor-fields">
+                  <div className="field-block">
+                    <label>Font Family</label>
                     <select
+                      className="dark-select"
                       value={selectedFont}
-                      onChange={(e) => handleFontChange(e.target.value)}
-                      className="font-dropdown"
+                      onChange={(e) => {
+                        setSelectedFont(e.target.value);
+                        updateSelectedText("fontFamily", e.target.value);
+                      }}
                     >
                       {FONTS.map((f) => (
-                        <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>
+                        <option key={f.family} value={f.family}>
                           {f.label}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="control-field">
-                    <label>Size ({fontSize}px)</label>
+                  <div className="field-block">
+                    <div className="slider-row">
+                      <span>Size</span>
+                      <span>{fontSize}px</span>
+                    </div>
                     <input
                       type="range"
-                      min="16"
-                      max="90"
+                      className="dark-range"
+                      min="18"
+                      max="80"
                       value={fontSize}
-                      onChange={(e) => handleFontSizeChange(Number(e.target.value))}
+                      onChange={(e) => {
+                        setFontSize(Number(e.target.value));
+                        updateSelectedText("fontSize", Number(e.target.value));
+                      }}
                     />
                   </div>
 
-                  <div className="control-field">
+                  <div className="field-block">
                     <label>Text Color</label>
-                    <div className="palette-grid">
-                      {COLOR_PALETTE.map((c) => (
+                    <div className="swatch-grid">
+                      {COLOR_PALETTE.map((color) => (
                         <button
-                          key={c}
-                          className={`palette-swatch ${textColor === c ? "selected" : ""}`}
-                          style={{ background: c }}
-                          onClick={() => handleTextColorChange(c)}
+                          key={color}
+                          className={`swatch-btn ${textColor === color ? "active" : ""}`}
+                          style={{ background: color }}
+                          onClick={() => {
+                            setTextColor(color);
+                            updateSelectedText("fill", color);
+                          }}
                         />
                       ))}
                     </div>
@@ -305,25 +311,41 @@ export default function App() {
             </div>
           )}
 
-          <div className="toolbox-section bottom-utility">
-            <button className="utility-btn" onClick={undoLastAction}>
+          <div className="sidebar-bottom-actions">
+            <button className="subtle-btn" onClick={undoLastAction}>
               Undo
             </button>
             <button
-              className="utility-btn delete-btn"
+              className="danger-btn"
               disabled={!selectedObject}
               onClick={deleteActiveObject}
             >
-              Delete Item
+              Delete
             </button>
           </div>
         </aside>
 
-        <main className="spread-view-area">
-          <div className="spread-header-labels">
-            <span className="page-num-pill">Page {currentSpread.leftPageNum}</span>
-            <span className="spread-center-title">Two-Page Spread</span>
-            <span className="page-num-pill">Page {currentSpread.rightPageNum}</span>
+        <main className="stage-viewport">
+          <div className="stage-top-indicator">
+            <button
+              className="nav-arrow-btn"
+              disabled={activePageNum === 1}
+              onClick={() => navigateToPage(activePageNum - 1)}
+            >
+              &#8592; Prev Page
+            </button>
+
+            <div className="page-status-pill">
+              Editing <span className="highlight-text">Page {activePageNum}</span> of {totalPages}
+            </div>
+
+            <button
+              className="nav-arrow-btn"
+              disabled={activePageNum === totalPages}
+              onClick={() => navigateToPage(activePageNum + 1)}
+            >
+              Next Page &#8594;
+            </button>
           </div>
 
           <SpreadCanvas
@@ -331,38 +353,45 @@ export default function App() {
             mode={mode}
             brushColor={brushColor}
             brushSize={brushSize}
-            canvasData={currentSpread.canvasData}
+            canvasData={activeSpread.canvasData}
+            activeSide={activeSide}
+            flipDirection={flipDirection}
             onCanvasReady={setActiveCanvas}
             onSelectionChange={setSelectedObject}
           />
         </main>
       </div>
 
-      <footer className="spread-filmstrip-drawer">
-        <div className="filmstrip-header">
-          <span>Book Pages & Spreads ({spreads.length} Spreads)</span>
-          <button className="add-spread-btn" onClick={addSpread}>
-            + Add New Spread
+      <footer className="page-carousel-dock">
+        <div className="dock-meta-row">
+          <span className="dock-title">PAGES NAVIGATION</span>
+          <button className="add-page-pill-btn" onClick={addNewPagePair}>
+            + Add 2 Pages
           </button>
         </div>
 
-        <div className="spread-cards-strip">
-          {spreads.map((spread, idx) => (
-            <div
-              key={spread.id}
-              className={`spread-card ${spread.id === activeSpreadId ? "active" : ""}`}
-              onClick={() => switchSpread(spread.id)}
-            >
-              <div className="spread-card-preview">
-                <div className="preview-page" />
-                <div className="preview-spine" />
-                <div className="preview-page" />
+        <div className="page-tiles-track">
+          {pageList.map((pageNum) => {
+            const isLeft = pageNum % 2 === 1;
+            const isSelected = pageNum === activePageNum;
+
+            return (
+              <div
+                key={pageNum}
+                className={`page-tile-item ${isSelected ? "selected" : ""}`}
+                onClick={() => navigateToPage(pageNum)}
+              >
+                <div className={`tile-leaf ${isLeft ? "left-leaf" : "right-leaf"}`}>
+                  <div className="leaf-content-indicator">
+                    <div className="mock-line" />
+                    <div className="mock-line short" />
+                  </div>
+                  <span className="tile-leaf-num">{pageNum}</span>
+                </div>
+                <span className="tile-sublabel">{isLeft ? "Left Page" : "Right Page"}</span>
               </div>
-              <span className="spread-card-label">
-                Spread {idx + 1} (pp. {spread.leftPageNum}-{spread.rightPageNum})
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </footer>
     </div>

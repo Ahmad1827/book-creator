@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Canvas, PencilBrush, Line } from "fabric";
+import { Canvas, PencilBrush } from "fabric";
 import { BookTheme } from "../types";
 
 interface SpreadCanvasProps {
@@ -8,6 +8,8 @@ interface SpreadCanvasProps {
   brushColor: string;
   brushSize: number;
   canvasData: any | null;
+  activeSide: "left" | "right";
+  flipDirection: "next" | "prev" | null;
   onCanvasReady: (canvas: Canvas) => void;
   onSelectionChange: (target: any | null) => void;
 }
@@ -18,6 +20,8 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   brushColor,
   brushSize,
   canvasData,
+  activeSide,
+  flipDirection,
   onCanvasReady,
   onSelectionChange,
 }) => {
@@ -78,12 +82,20 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   }, [theme]);
 
   return (
-    <div className="spread-frame-container">
-      <div className="spread-sheet" style={{ borderColor: theme.borderColor }}>
-        <canvas ref={canvasElRef} />
+    <div className={`spread-perspective-stage ${flipDirection ? `turn-${flipDirection}` : ""}`}>
+      <div className="spread-frame-container" style={{ borderColor: theme.borderColor }}>
+        <div className={`page-focus-indicator left ${activeSide === "left" ? "focused" : ""}`} />
+        <div className={`page-focus-indicator right ${activeSide === "right" ? "focused" : ""}`} />
+
+        <div className="canvas-wrapper">
+          <canvas ref={canvasElRef} />
+        </div>
+
         <div className="spine-divider" style={{ background: theme.spineColor }}>
           <div className="spine-crease-shadow" />
         </div>
+
+        <div className="page-flip-flap" style={{ background: theme.pageBackground }} />
       </div>
     </div>
   );
