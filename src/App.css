@@ -462,7 +462,7 @@ body, html, #root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 20px;
   z-index: 20;
 }
 
@@ -511,7 +511,7 @@ body, html, #root {
 .topbar-center-tools {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .history-btn-group {
@@ -543,11 +543,6 @@ body, html, #root {
 .history-action-btn:disabled {
   opacity: 0.25;
   cursor: not-allowed;
-}
-
-.canvas-viewport-layer canvas {
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
 }
 
 .lofi-pill-switch {
@@ -609,34 +604,19 @@ body, html, #root {
   background: #2d231e;
 }
 
-.palette-inline-tray, .type-inline-tray {
+.type-inline-tray {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .lofi-warm-slider {
-  width: 80px;
   accent-color: #c68b59;
   cursor: pointer;
 }
 
-.lofi-color-drops {
-  display: flex;
-  gap: 6px;
-}
-
-.color-drop {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-}
-
-.color-drop.active {
-  border-color: #f7ebe1;
-  transform: scale(1.15);
+.lofi-warm-slider.full-width {
+  width: 100%;
 }
 
 .lofi-add-btn {
@@ -659,16 +639,6 @@ body, html, #root {
   font-size: 11px;
 }
 
-.lofi-del-btn {
-  background: transparent;
-  border: 1px solid #522723;
-  color: #e07a5f;
-  padding: 5px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  cursor: pointer;
-}
-
 .export-leather-btn {
   background: #382c24;
   border: 1px solid #4a3a30;
@@ -682,6 +652,261 @@ body, html, #root {
 
 .export-leather-btn:hover {
   background: #47372d;
+}
+
+.lofi-editor-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.lofi-left-toolbox {
+  width: 250px;
+  background: #1c1613;
+  border-right: 1px solid #2b221d;
+  display: flex;
+  flex-direction: column;
+  z-index: 15;
+}
+
+.toolbox-tab-nav {
+  display: flex;
+  background: #15110f;
+  border-bottom: 1px solid #2b221d;
+  padding: 4px;
+  gap: 4px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 6px 0;
+  background: transparent;
+  border: none;
+  color: #8c7668;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  background: #29201b;
+  color: #f7ebe1;
+}
+
+.toolbox-scroll-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toolbox-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.toolbox-heading {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #8c7668;
+}
+
+.brush-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.brush-type-card {
+  background: #231b17;
+  border: 1px solid #33261f;
+  padding: 8px 6px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.brush-type-card:hover {
+  background: #2a211c;
+}
+
+.brush-type-card.active {
+  background: #362820;
+  border-color: #c68b59;
+}
+
+.brush-icon {
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+
+.brush-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f7ebe1;
+}
+
+.brush-sub {
+  font-size: 9px;
+  color: #8c7668;
+}
+
+.control-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slider-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #bfa799;
+}
+
+.control-palette-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.palette-swatch-box {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.pigment-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.pigment-dot:hover {
+  transform: scale(1.1);
+}
+
+.pigment-dot.active {
+  border-color: #f7ebe1;
+  outline: 2px solid #c68b59;
+}
+
+.shapes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.shape-action-btn {
+  background: #231b17;
+  border: 1px solid #33261f;
+  padding: 8px 4px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.shape-action-btn:hover {
+  background: #2b211a;
+  border-color: #c68b59;
+}
+
+.shape-svg {
+  width: 22px;
+  height: 22px;
+}
+
+.shape-action-btn span {
+  font-size: 10px;
+  font-weight: 600;
+  color: #d8c3b4;
+}
+
+.stickers-matrix {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.sticker-stamp-btn {
+  background: #231b17;
+  border: 1px solid #33261f;
+  font-size: 20px;
+  padding: 8px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sticker-stamp-btn:hover {
+  background: #2e221b;
+  border-color: #c68b59;
+  transform: scale(1.1);
+}
+
+.toolbox-arrange-dock {
+  padding: 12px;
+  background: #17120f;
+  border-top: 1px solid #2b221d;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.arrange-btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.dock-tool-btn {
+  background: #231b17;
+  border: 1px solid #33261f;
+  color: #d8c3b4;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.dock-tool-btn:hover:not(:disabled) {
+  background: #2e221b;
+  color: #f7ebe1;
+}
+
+.dock-tool-btn.danger {
+  color: #e07a5f;
+  border-color: #4a211b;
+}
+
+.dock-tool-btn.danger:hover:not(:disabled) {
+  background: #361713;
+}
+
+.dock-tool-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
 }
 
 .lofi-desk-viewport {
@@ -831,6 +1056,10 @@ body, html, #root {
   position: absolute;
   inset: 0;
   z-index: 6;
+}
+
+.canvas-viewport-layer canvas {
+  image-rendering: auto;
 }
 
 .book-gutter-depth {
@@ -1031,8 +1260,4 @@ body, html, #root {
   background: transparent;
   border-style: dashed;
   color: #c68b59;
-}
-
-.canvas-viewport-layer canvas {
-  image-rendering: auto;
 }

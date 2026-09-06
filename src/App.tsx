@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Canvas, IText } from "fabric";
+import { Canvas, IText, Path, Rect, Circle } from "fabric";
 import { SpreadCanvas } from "./components/SpreadCanvas";
+import { DrawingToolbox, BrushType, ShapeType } from "./components/DrawingToolbox";
 import { ThemePreviewModal } from "./components/ThemePreviewModal";
 import { BookProject } from "./types";
 import { THEMES, FONTS, LOFI_PALETTE } from "./constants";
@@ -27,9 +28,13 @@ export default function App() {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  const [mode, setMode] = useState<"select" | "draw" | "pan">("select");
+  const [mode, setMode] = useState<"select" | "draw" | "pan">("draw");
+  const [brushType, setBrushType] = useState<BrushType>("pen");
   const [brushColor, setBrushColor] = useState<string>("#1d291e");
-  const [brushSize, setBrushSize] = useState<number>(4);
+  const [brushSize, setBrushSize] = useState<number>(6);
+
+  const [shapeFill, setShapeFill] = useState<string>("#dda15e");
+  const [shapeStroke, setShapeStroke] = useState<string>("#2c211a");
 
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -114,6 +119,19 @@ export default function App() {
     });
   }, []);
 
+  const deleteElement = useCallback(() => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+    const active = c.getActiveObject();
+    if (active) {
+      c.remove(active);
+      c.discardActiveObject();
+      c.renderAll();
+      setSelectedObject(null);
+      recordCanvasState(c);
+    }
+  }, [recordCanvasState]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const c = activeCanvasRef.current;
@@ -147,7 +165,7 @@ export default function App() {
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () =>
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, deleteElement]);
 
   const handleCanvasReady = (canvas: Canvas) => {
     activeCanvasRef.current = canvas;
@@ -156,6 +174,163 @@ export default function App() {
     redoStackRef.current = [];
     setCanUndo(false);
     setCanRedo(false);
+  };
+
+  const handleAddShape = (type: ShapeType) => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+
+    const posX = activeSide === "left" ? 220 : 820;
+    const posY = 220;
+
+    let shapeObj: any;
+
+    if (type === "star") {
+      shapeObj = new Path(
+        "M 50 0 L 63 35 L 100 35 L 70 57 L 81 92 L 50 70 L 19 92 L 30 57 L 0 35 L 37 35 Z",
+        {
+          left: posX,
+          top: posY,
+          fill: shapeFill,
+          stroke: shapeStroke,
+          strokeWidth: 2,
+          scaleX: 0.9,
+          scaleY: 0.9,
+        }
+      );
+    } else if (type === "heart") {
+      shapeObj = new Path(
+        "M 140 20 C 73 -25 0 74 140 180 C 280 74 207 -25 140 20 Z",
+        {
+          left: posX,
+          top: posY,
+          fill: shapeFill,
+          stroke: shapeStroke,
+          strokeWidth: 2,
+          scaleX: 0.45,
+          scaleY: 0.45,
+        }
+      );
+    } else if (type === "cloud") {
+      shapeObj = new Path(
+        "M 170 80 A 45 45 0 0 1 82 80 A 35 35 0 0 1 35 110 A 30 30 0 0 1 35 160 A 30 30 0 0 1 50 170 H 190 A 30 30 0 0 1 205 160 A 35 35 0 0 1 205 110 A 45 45 0 0 1 170 80 Z",
+        {
+          left: posX,
+          top: posY,
+          fill: shapeFill,
+          stroke: shapeStroke,
+          strokeWidth: 2,
+          scaleX: 0.6,
+          scaleY: 0.6,
+        }
+      );
+    } else if (type === "speech") {
+      shapeObj = new Path(
+        "M 20 20 H 180 A 15 15 0 0 1 195 35 V 105 A 15 15 0 0 1 180 120 H 70 L 40 150 V 120 H 20 A 15 15 0 0 1 5 105 V 35 A 15 15 0 0 1 20 20 Z",
+        {
+          left: posX,
+          top: posY,
+          fill: shapeFill,
+          stroke: shapeStroke,
+          strokeWidth: 2,
+          scaleX: 0.7,
+          scaleY: 0.7,
+        }
+      );
+    } else if (type === "circle") {
+      shapeObj = new Circle({
+        left: posX,
+        top: posY,
+        radius: 50,
+        fill: shapeFill,
+        stroke: shapeStroke,
+        strokeWidth: 2,
+      });
+    } else {
+      shapeObj = new Rect({
+        left: posX,
+        top: posY,
+        width: 140,
+        height: 90,
+        rx: 8,
+        ry: 8,
+        fill: shapeFill,
+        stroke: shapeStroke,
+        strokeWidth: 2,
+      });
+    }
+
+    c.add(shapeObj);
+    c.setActiveObject(shapeObj);
+    setMode("select");
+    c.renderAll();
+    recordCanvasState(c);
+  };
+
+  const handleAddSticker = (sticker: string) => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+
+    const posX = activeSide === "left" ? 240 : 840;
+    const posY = 220;
+
+    const stickerText = new IText(sticker, {
+      left: posX,
+      top: posY,
+      fontSize: 54,
+      fontFamily: "Arial",
+      padding: 6,
+      borderColor: currentTheme.accentColor,
+      cornerColor: currentTheme.accentColor,
+      cornerSize: 8,
+      transparentCorners: false,
+    });
+
+    c.add(stickerText);
+    c.setActiveObject(stickerText);
+    setMode("select");
+    c.renderAll();
+    recordCanvasState(c);
+  };
+
+  const handleBringForward = () => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+    const active = c.getActiveObject();
+    if (active) {
+      c.bringObjectToFront(active);
+      c.renderAll();
+      recordCanvasState(c);
+    }
+  };
+
+  const handleSendBackward = () => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+    const active = c.getActiveObject();
+    if (active) {
+      c.sendObjectToBack(active);
+      c.renderAll();
+      recordCanvasState(c);
+    }
+  };
+
+  const handleDuplicate = () => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+    const active = c.getActiveObject();
+    if (active) {
+      active.clone().then((cloned: any) => {
+        cloned.set({
+          left: (active.left || 100) + 20,
+          top: (active.top || 100) + 20,
+        });
+        c.add(cloned);
+        c.setActiveObject(cloned);
+        c.renderAll();
+        recordCanvasState(c);
+      });
+    }
   };
 
   const createNewBook = (e: React.FormEvent) => {
@@ -348,19 +523,6 @@ export default function App() {
     }
     c.requestRenderAll();
     recordCanvasState(c);
-  };
-
-  const deleteElement = () => {
-    const c = activeCanvasRef.current;
-    if (!c) return;
-    const active = c.getActiveObject();
-    if (active) {
-      c.remove(active);
-      c.discardActiveObject();
-      c.renderAll();
-      setSelectedObject(null);
-      recordCanvasState(c);
-    }
   };
 
   const resetView = () => {
@@ -692,68 +854,38 @@ export default function App() {
 
           <div className="soft-vertical-bar" />
 
-          {mode === "draw" ? (
-            <div className="palette-inline-tray">
-              <input
-                type="range"
-                className="lofi-warm-slider"
-                min="2"
-                max="48"
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
-              />
-              <div className="lofi-color-drops">
-                {LOFI_PALETTE.map((col) => (
-                  <button
-                    key={col}
-                    className={`color-drop ${
-                      brushColor === col ? "active" : ""
-                    }`}
-                    style={{ backgroundColor: col }}
-                    onClick={() => setBrushColor(col)}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="type-inline-tray">
-              <button className="lofi-add-btn" onClick={addTextElement}>
-                + Add Words
-              </button>
-              {selectedObject?.type === "i-text" && (
-                <>
-                  <select
-                    className="lofi-select"
-                    value={selectedFont}
-                    onChange={(e) => updateTextFont(e.target.value)}
-                  >
-                    {FONTS.map((f) => (
-                      <option
-                        key={f.name}
-                        value={f.name}
-                        style={{ fontFamily: f.name }}
-                      >
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="range"
-                    className="lofi-warm-slider"
-                    min="16"
-                    max="72"
-                    value={fontSize}
-                    onChange={(e) =>
-                      updateTextFontSize(Number(e.target.value))
-                    }
-                  />
-                  <button className="lofi-del-btn" onClick={deleteElement}>
-                    Remove
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+          <div className="type-inline-tray">
+            <button className="lofi-add-btn" onClick={addTextElement}>
+              + Add Words
+            </button>
+            {selectedObject?.type === "i-text" && (
+              <>
+                <select
+                  className="lofi-select"
+                  value={selectedFont}
+                  onChange={(e) => updateTextFont(e.target.value)}
+                >
+                  {FONTS.map((f) => (
+                    <option
+                      key={f.name}
+                      value={f.name}
+                      style={{ fontFamily: f.name }}
+                    >
+                      {f.name} ({f.category})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="range"
+                  className="lofi-warm-slider"
+                  min="16"
+                  max="72"
+                  value={fontSize}
+                  onChange={(e) => updateTextFontSize(Number(e.target.value))}
+                />
+              </>
+            )}
+          </div>
         </div>
 
         <div className="topbar-right">
@@ -767,35 +899,60 @@ export default function App() {
         </div>
       </header>
 
-      <main
-        className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
-          isPanning ? "grabbing" : ""
-        }`}
-        onMouseDown={handleMouseDownOnStage}
-        onMouseMove={handleMouseMoveOnStage}
-        onMouseUp={handleMouseUpOnStage}
-        onWheel={handleWheelOnStage}
-      >
-        <div
-          className="stage-book-anchor"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoomLevel / 100})`,
-          }}
+      <div className="lofi-editor-body">
+        <DrawingToolbox
+          mode={mode}
+          onSetMode={setMode}
+          brushType={brushType}
+          onSetBrushType={setBrushType}
+          brushSize={brushSize}
+          onSetBrushSize={setBrushSize}
+          brushColor={brushColor}
+          onSetBrushColor={setBrushColor}
+          shapeFill={shapeFill}
+          onSetShapeFill={setShapeFill}
+          shapeStroke={shapeStroke}
+          onSetShapeStroke={setShapeStroke}
+          onAddShape={handleAddShape}
+          onAddSticker={handleAddSticker}
+          onBringForward={handleBringForward}
+          onSendBackward={handleSendBackward}
+          onDuplicate={handleDuplicate}
+          onDelete={deleteElement}
+          hasSelection={!!selectedObject}
+        />
+
+        <main
+          className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
+            isPanning ? "grabbing" : ""
+          }`}
+          onMouseDown={handleMouseDownOnStage}
+          onMouseMove={handleMouseMoveOnStage}
+          onMouseUp={handleMouseUpOnStage}
+          onWheel={handleWheelOnStage}
         >
-          <SpreadCanvas
-            theme={currentTheme}
-            mode={mode}
-            brushColor={brushColor}
-            brushSize={brushSize}
-            canvasData={activeSpread.canvasData}
-            activeSide={activeSide}
-            turnState={turnState}
-            onCanvasReady={handleCanvasReady}
-            onSelectionChange={setSelectedObject}
-            onSaveState={recordCanvasState}
-          />
-        </div>
-      </main>
+          <div
+            className="stage-book-anchor"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoomLevel / 100})`,
+            }}
+          >
+            <SpreadCanvas
+              theme={currentTheme}
+              mode={mode}
+              brushType={brushType}
+              brushColor={brushColor}
+              brushSize={brushSize}
+              canvasData={activeSpread.canvasData}
+              activeSide={activeSide}
+              turnState={turnState}
+              onCanvasReady={handleCanvasReady}
+              onSelectionChange={setSelectedObject}
+              onSaveState={recordCanvasState}
+            />
+          </div>
+        </main>
+      </div>
 
       <footer className="lofi-bottom-tray">
         <div className="tray-page-turner">

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Canvas, PencilBrush, config } from "fabric";
 import { BookTheme } from "../types";
 import { ThemeDecors } from "./ThemeDecors";
+import { BrushType } from "./DrawingToolbox";
 
 if (config) {
   config.devicePixelRatio = Math.max(window.devicePixelRatio || 1, 2);
@@ -10,6 +11,7 @@ if (config) {
 interface SpreadCanvasProps {
   theme: BookTheme;
   mode: "select" | "draw" | "pan";
+  brushType: BrushType;
   brushColor: string;
   brushSize: number;
   canvasData: any | null;
@@ -23,6 +25,7 @@ interface SpreadCanvasProps {
 export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   theme,
   mode,
+  brushType,
   brushColor,
   brushSize,
   canvasData,
@@ -105,13 +108,33 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     canvas.selection = mode === "select";
 
     if (canvas.freeDrawingBrush) {
-      canvas.freeDrawingBrush.color = brushColor;
-      canvas.freeDrawingBrush.width = brushSize;
-      canvas.freeDrawingBrush.strokeLineCap = "round";
-      canvas.freeDrawingBrush.strokeLineJoin = "round";
-      canvas.freeDrawingBrush.decimate = 0;
+      const b = canvas.freeDrawingBrush as any;
+      b.strokeLineCap = "round";
+      b.strokeLineJoin = "round";
+      b.decimate = 0;
+
+      if (brushType === "eraser") {
+        b.color = "rgba(0,0,0,1)";
+        b.width = brushSize * 1.6;
+        b.globalCompositeOperation = "destination-out";
+      } else if (brushType === "watercolor") {
+        b.color = brushColor;
+        b.width = brushSize * 1.8;
+        b.globalCompositeOperation = "source-over";
+        b.strokeDashArray = null;
+      } else if (brushType === "crayon") {
+        b.color = brushColor;
+        b.width = brushSize * 1.2;
+        b.globalCompositeOperation = "source-over";
+        b.strokeDashArray = null;
+      } else {
+        b.color = brushColor;
+        b.width = brushSize;
+        b.globalCompositeOperation = "source-over";
+        b.strokeDashArray = null;
+      }
     }
-  }, [mode, brushColor, brushSize]);
+  }, [mode, brushType, brushColor, brushSize]);
 
   return (
     <div
