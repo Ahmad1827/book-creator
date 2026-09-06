@@ -18,46 +18,99 @@ export type ShapeType =
   | "thought"
   | "moon"
   | "flower"
-  | "banner"
   | "circle"
   | "rect";
 
 export type BrushSubtype = "ink" | "watercolor" | "marker" | "crayon" | "eraser";
 export type WandSubtype = "stardust" | "fairydust" | "firefly" | "rainbow";
 
-interface DrawingToolboxProps {
-  activeTool: ToolId;
-  onSelectTool: (tool: ToolId) => void;
-  isDrawerOpen: boolean;
-  onToggleDrawer: () => void;
-  // Brush & Pencil
-  brushSubtype: BrushSubtype;
-  onSetBrushSubtype: (type: BrushSubtype) => void;
-  wandSubtype: WandSubtype;
-  onSetWandSubtype: (type: WandSubtype) => void;
-  brushSize: number;
-  onSetBrushSize: (size: number) => void;
-  brushColor: string;
-  onSetBrushColor: (color: string) => void;
-  brushOpacity: number;
-  onSetBrushOpacity: (opacity: number) => void;
-  // Shapes
-  shapeFill: string;
-  onSetShapeFill: (color: string) => void;
-  shapeStroke: string;
-  onSetShapeStroke: (color: string) => void;
-  shapeStrokeWidth: number;
-  onSetShapeStrokeWidth: (w: number) => void;
-  onAddShape: (type: ShapeType) => void;
-  // Stickers
-  onAddSticker: (stk: string) => void;
-  // Arrange
-  hasSelection: boolean;
-  onBringForward: () => void;
-  onSendBackward: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
+export interface StickerDefinition {
+  id: string;
+  name: string;
+  svg: string;
+  fill: string;
 }
+
+export const STORY_STICKERS: Record<string, StickerDefinition[]> = {
+  characters: [
+    {
+      id: "crown",
+      name: "Golden Crown",
+      fill: "#f59e0b",
+      svg: "M 10 70 L 20 25 L 45 45 L 50 15 L 55 45 L 80 25 L 90 70 Z",
+    },
+    {
+      id: "teddy",
+      name: "Teddy Face",
+      fill: "#b45309",
+      svg: "M 20 30 A 15 15 0 1 1 35 15 M 80 30 A 15 15 0 1 1 65 15 M 50 25 A 35 35 0 1 1 49.9 25 Z",
+    },
+    {
+      id: "cat_paws",
+      name: "Paw Print",
+      fill: "#c2410c",
+      svg: "M 50 50 C 40 50 30 65 50 85 C 70 65 60 50 50 50 Z M 25 40 A 8 12 0 1 1 25 39 M 42 28 A 8 12 0 1 1 42 27 M 58 28 A 8 12 0 1 1 58 27 M 75 40 A 8 12 0 1 1 75 39",
+    },
+    {
+      id: "magic_wand",
+      name: "Star Wand",
+      fill: "#ec4899",
+      svg: "M 50 10 L 56 26 L 72 26 L 60 36 L 64 52 L 50 42 L 36 52 L 40 36 L 28 26 L 44 26 Z M 50 45 L 85 90",
+    },
+  ],
+  nature: [
+    {
+      id: "pine_tree",
+      name: "Pine Tree",
+      fill: "#15803d",
+      svg: "M 50 10 L 75 40 L 65 40 L 85 65 L 55 65 L 55 85 L 45 85 L 45 65 L 15 65 L 35 40 L 25 40 Z",
+    },
+    {
+      id: "mushroom",
+      name: "Toadstool",
+      fill: "#e11d48",
+      svg: "M 15 50 C 15 15 85 15 85 50 Z M 40 50 L 40 85 L 60 85 L 60 50 Z",
+    },
+    {
+      id: "sun",
+      name: "Warm Sun",
+      fill: "#eab308",
+      svg: "M 50 25 A 25 25 0 1 1 49.9 25 M 50 5 L 50 15 M 50 85 L 50 95 M 5 50 L 15 50 M 85 50 L 95 50 M 18 18 L 26 26 M 74 74 L 82 82 M 18 82 L 26 74 M 74 26 L 82 18",
+    },
+    {
+      id: "flower_tulip",
+      name: "Spring Bloom",
+      fill: "#db2777",
+      svg: "M 50 30 C 20 30 20 70 50 80 C 80 70 80 30 50 30 M 50 80 L 50 95",
+    },
+  ],
+  cozy: [
+    {
+      id: "teacup",
+      name: "Tea Mug",
+      fill: "#a16207",
+      svg: "M 20 35 L 25 80 C 25 88 75 88 75 80 L 80 35 Z M 77 45 C 90 45 90 70 76 70",
+    },
+    {
+      id: "cupcake",
+      name: "Sweet Treat",
+      fill: "#fb7185",
+      svg: "M 30 50 L 35 85 L 65 85 L 70 50 Z M 20 50 C 20 20 80 20 80 50 Z",
+    },
+    {
+      id: "balloon",
+      name: "Party Balloon",
+      fill: "#ef4444",
+      svg: "M 50 15 A 30 35 0 1 1 49.9 15 M 46 85 L 54 85 L 50 78 Z M 50 85 Q 55 95 45 105",
+    },
+    {
+      id: "sailboat",
+      name: "Paper Boat",
+      fill: "#0284c7",
+      svg: "M 10 65 L 90 65 L 75 85 L 25 85 Z M 48 20 L 48 60 L 15 60 Z M 52 10 L 52 60 L 82 60 Z",
+    },
+  ],
+};
 
 const PALETTE_COLLECTIONS = [
   {
@@ -78,12 +131,35 @@ const PALETTE_COLLECTIONS = [
   },
 ];
 
-const STICKER_PACKS = {
-  animals: ["🦊", "🐻", "🐰", "🦉", "🐱", "🐶", "🦆", "🐿️", "🦔", "🐸", "🦌", "🐝"],
-  nature: ["🌲", "🌸", "🍄", "🍃", "🌈", "🌻", "🍂", "☀️", "🌙", "⭐", "💧", "🪴"],
-  fantasy: ["👑", "🏰", "🦄", "🪄", "🔮", "🗡️", "🧝", "🧚", "✨", "📜", "🗝️", "💎"],
-  cozy: ["☕", "🧁", "🍎", "🥞", "🍪", "🥐", "🧺", "🧸", "🎈", "🧶", "📖", "🕯️"],
-};
+interface DrawingToolboxProps {
+  activeTool: ToolId;
+  onSelectTool: (tool: ToolId) => void;
+  isDrawerOpen: boolean;
+  onToggleDrawer: () => void;
+  brushSubtype: BrushSubtype;
+  onSetBrushSubtype: (type: BrushSubtype) => void;
+  wandSubtype: WandSubtype;
+  onSetWandSubtype: (type: WandSubtype) => void;
+  brushSize: number;
+  onSetBrushSize: (size: number) => void;
+  brushColor: string;
+  onSetBrushColor: (color: string) => void;
+  brushOpacity: number;
+  onSetBrushOpacity: (opacity: number) => void;
+  shapeFill: string;
+  onSetShapeFill: (color: string) => void;
+  shapeStroke: string;
+  onSetShapeStroke: (color: string) => void;
+  shapeStrokeWidth: number;
+  onSetShapeStrokeWidth: (w: number) => void;
+  onAddShape: (type: ShapeType) => void;
+  onAddSticker: (stk: StickerDefinition) => void;
+  hasSelection: boolean;
+  onBringForward: () => void;
+  onSendBackward: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}
 
 export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
   activeTool,
@@ -114,7 +190,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
   onDuplicate,
   onDelete,
 }) => {
-  const [stickerCategory, setStickerCategory] = useState<keyof typeof STICKER_PACKS>("animals");
+  const [stickerCategory, setStickerCategory] = useState<keyof typeof STORY_STICKERS>("characters");
 
   const handleToolClick = (tool: ToolId) => {
     if (activeTool === tool && isDrawerOpen) {
@@ -129,7 +205,6 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
     <aside className="lofi-dual-toolbox">
       {/* 1. SLIM ICON RAIL */}
       <div className="toolbox-icon-rail">
-        {/* SELECT */}
         <button
           className={`rail-icon-btn ${activeTool === "select" ? "active" : ""}`}
           onClick={() => handleToolClick("select")}
@@ -140,7 +215,6 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           </svg>
         </button>
 
-        {/* PENCIL */}
         <button
           className={`rail-icon-btn ${activeTool === "pencil" ? "active" : ""}`}
           onClick={() => handleToolClick("pencil")}
@@ -151,29 +225,26 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           </svg>
         </button>
 
-        {/* BRUSH */}
         <button
           className={`rail-icon-btn ${activeTool === "brush" ? "active" : ""}`}
           onClick={() => handleToolClick("brush")}
-          data-tooltip="Artist Brushes (B)"
+          data-tooltip="Artist Brushes & Eraser (B)"
         >
           <svg viewBox="0 0 24 24" className="rail-svg">
             <path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.71a1 1 0 0 0-1.42 0l-9.05 9.06 2.83 2.83 9.06-9.06a1 1 0 0 0 0-1.41l-1.42-1.42z" fill="currentColor" />
           </svg>
         </button>
 
-        {/* MAGIC WAND */}
         <button
           className={`rail-icon-btn ${activeTool === "wand" ? "active" : ""}`}
           onClick={() => handleToolClick("wand")}
-          data-tooltip="Magic Wand & Sparkle Ink"
+          data-tooltip="Magic Wand (Glow Trails)"
         >
           <svg viewBox="0 0 24 24" className="rail-svg">
             <path d="M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29c-.39-.39-1.02-.39-1.41 0L1.29 18.96c-.39.39-.39 1.02 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05c.39-.39.39-1.02 0-1.41l-2.33-2.35z" fill="currentColor" />
           </svg>
         </button>
 
-        {/* MASTER PALETTE */}
         <button
           className={`rail-icon-btn ${activeTool === "palette" ? "active" : ""}`}
           onClick={() => handleToolClick("palette")}
@@ -184,7 +255,6 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           </svg>
         </button>
 
-        {/* SHAPES */}
         <button
           className={`rail-icon-btn ${activeTool === "shapes" ? "active" : ""}`}
           onClick={() => handleToolClick("shapes")}
@@ -195,22 +265,20 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           </svg>
         </button>
 
-        {/* STICKERS */}
         <button
           className={`rail-icon-btn ${activeTool === "stickers" ? "active" : ""}`}
           onClick={() => handleToolClick("stickers")}
-          data-tooltip="Stickers & Story Stamps"
+          data-tooltip="Story Stamps & Stickers"
         >
           <svg viewBox="0 0 24 24" className="rail-svg">
             <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" fill="currentColor" />
           </svg>
         </button>
 
-        {/* ARRANGE / LAYERS */}
         <button
           className={`rail-icon-btn ${activeTool === "arrange" ? "active" : ""}`}
           onClick={() => handleToolClick("arrange")}
-          data-tooltip="Layers & Arrangement"
+          data-tooltip="Layer Actions"
         >
           <svg viewBox="0 0 24 24" className="rail-svg">
             <path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9.07l-9-7-9 7 1.63 1.27L12 16z" fill="currentColor" />
@@ -219,7 +287,6 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
 
         <div className="rail-spacer" />
 
-        {/* DRAWER TOGGLER */}
         <button
           className="rail-icon-btn toggle-arrow"
           onClick={onToggleDrawer}
@@ -229,25 +296,25 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
         </button>
       </div>
 
-      {/* 2. EXPANDABLE DRAWER PANEL */}
+      {/* 2. FLYOUT DRAWER */}
       {isDrawerOpen && (
         <div className="toolbox-flyout-drawer">
           <div className="drawer-header">
             <span className="drawer-title">
               {activeTool === "select" && "Selection & Transform"}
-              {activeTool === "pencil" && "Sketchbook Pencil"}
-              {activeTool === "brush" && "Brushes & Mediums"}
-              {activeTool === "wand" && "Magic Wand & Sparkles"}
+              {activeTool === "pencil" && "Sketchbook Lead"}
+              {activeTool === "brush" && "Brushes & Eraser"}
+              {activeTool === "wand" && "Magic Wand Trails"}
               {activeTool === "palette" && "Color Studio"}
               {activeTool === "shapes" && "Storybook Geometry"}
               {activeTool === "stickers" && "Story Stamps"}
-              {activeTool === "arrange" && "Layer Stack & Actions"}
+              {activeTool === "arrange" && "Layer Stack"}
             </span>
             <button className="drawer-close-btn" onClick={onToggleDrawer}>✕</button>
           </div>
 
           <div className="drawer-body">
-            {/* PENCIL PANEL */}
+            {/* PENCIL */}
             {activeTool === "pencil" && (
               <div className="drawer-section">
                 <span className="drawer-label">Graphite Grade</span>
@@ -289,17 +356,17 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
-            {/* BRUSHES PANEL */}
+            {/* BRUSHES & ERASER */}
             {activeTool === "brush" && (
               <div className="drawer-section">
-                <span className="drawer-label">Brush Technique</span>
+                <span className="drawer-label">Brush & Eraser Mediums</span>
                 <div className="brush-cards-grid">
                   {[
                     { id: "ink", icon: "✒️", name: "Fountain Pen", desc: "Crisp Story Linework" },
-                    { id: "watercolor", icon: "🖌️", name: "Watercolor Wash", desc: "Soft Transparent" },
-                    { id: "marker", icon: "🖍️", name: "Felt Marker", desc: "Bold Rich Fill" },
-                    { id: "crayon", icon: "✏️", name: "Wax Crayon", desc: "Granular Texture" },
-                    { id: "eraser", icon: "🧹", name: "Eraser", desc: "Cutout Rubber" },
+                    { id: "watercolor", icon: "🖌️", name: "Watercolor Wash", desc: "Soft Transparent Fill" },
+                    { id: "marker", icon: "🖍️", name: "Felt Marker", desc: "Rich Vivid Ink" },
+                    { id: "crayon", icon: "✏️", name: "Wax Crayon", desc: "Pencil Texture" },
+                    { id: "eraser", icon: "🧹", name: "Stroke Eraser", desc: "Cleans Ink Back to Paper" },
                   ].map((b) => (
                     <button
                       key={b.id}
@@ -317,13 +384,13 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
 
                 <div className="drawer-slider-row">
                   <div className="slider-label-meta">
-                    <span>Brush Width</span>
+                    <span>{brushSubtype === "eraser" ? "Eraser Size" : "Brush Width"}</span>
                     <span>{brushSize}px</span>
                   </div>
                   <input
                     type="range"
                     min="2"
-                    max="60"
+                    max="70"
                     value={brushSize}
                     onChange={(e) => onSetBrushSize(Number(e.target.value))}
                     className="lofi-warm-slider full-width"
@@ -333,7 +400,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
                 {brushSubtype !== "eraser" && (
                   <div className="drawer-slider-row">
                     <div className="slider-label-meta">
-                      <span>Ink Opacity</span>
+                      <span>Opacity</span>
                       <span>{Math.round(brushOpacity * 100)}%</span>
                     </div>
                     <input
@@ -350,16 +417,16 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
-            {/* MAGIC WAND PANEL */}
+            {/* MAGIC WAND */}
             {activeTool === "wand" && (
               <div className="drawer-section">
-                <span className="drawer-label">Enchanted Story Inks</span>
+                <span className="drawer-label">Enchanted Glow Inks</span>
                 <div className="wand-cards-grid">
                   {[
-                    { id: "stardust", icon: "✨", name: "Golden Stardust", color: "#f59e0b", desc: "Glowing amber trail" },
-                    { id: "fairydust", icon: "🌸", name: "Fairy Blossom", color: "#f472b6", desc: "Soft magical pastel" },
-                    { id: "firefly", icon: "🟢", name: "Forest Firefly", color: "#4ade80", desc: "Luminous moss sheen" },
-                    { id: "rainbow", icon: "🌈", name: "Prism Trail", color: "#38bdf8", desc: "Dreamy azure starlight" },
+                    { id: "stardust", icon: "✨", name: "Golden Stardust", color: "#f59e0b", desc: "Amber luminescent glow" },
+                    { id: "fairydust", icon: "🌸", name: "Fairy Blossom", color: "#f472b6", desc: "Magical rose shimmer" },
+                    { id: "firefly", icon: "🟢", name: "Forest Firefly", color: "#4ade80", desc: "Neon moss trail" },
+                    { id: "rainbow", icon: "🌈", name: "Prism Star", color: "#38bdf8", desc: "Ethereal blue trail" },
                   ].map((w) => (
                     <button
                       key={w.id}
@@ -381,7 +448,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
-            {/* MASTER PALETTE ROOM */}
+            {/* COLOR PALETTE */}
             {(activeTool === "palette" || activeTool === "brush" || activeTool === "pencil") && (
               <div className="drawer-section">
                 <span className="drawer-label">Curated Color Palettes</span>
@@ -413,7 +480,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
-            {/* SHAPES PANEL */}
+            {/* SHAPES */}
             {activeTool === "shapes" && (
               <div className="drawer-section">
                 <span className="drawer-label">Picturebook Shapes</span>
@@ -426,7 +493,6 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
                     { id: "flower", label: "Petal", icon: "🌸" },
                     { id: "speech", label: "Speech", icon: "💬" },
                     { id: "thought", label: "Dream", icon: "💭" },
-                    { id: "banner", label: "Banner", icon: "🏷️" },
                     { id: "circle", label: "Round", icon: "⭕" },
                     { id: "rect", label: "Frame", icon: "🔲" },
                   ].map((s) => (
@@ -484,11 +550,11 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
-            {/* STICKERS PANEL */}
+            {/* STICKERS (VECTOR SVG GUARANTEED) */}
             {activeTool === "stickers" && (
               <div className="drawer-section">
                 <div className="sticker-category-tabs">
-                  {(["animals", "nature", "fantasy", "cozy"] as const).map((cat) => (
+                  {(["characters", "nature", "cozy"] as const).map((cat) => (
                     <button
                       key={cat}
                       className={`cat-pill ${stickerCategory === cat ? "active" : ""}`}
@@ -500,20 +566,31 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
                 </div>
 
                 <div className="stickers-tray-grid">
-                  {STICKER_PACKS[stickerCategory].map((emoji) => (
+                  {STORY_STICKERS[stickerCategory].map((stk) => (
                     <button
-                      key={emoji}
-                      className="sticker-card-btn"
-                      onClick={() => onAddSticker(emoji)}
+                      key={stk.id}
+                      className="vector-sticker-card"
+                      onClick={() => onAddSticker(stk)}
+                      title={stk.name}
                     >
-                      {emoji}
+                      <svg viewBox="0 0 100 100" className="vector-sticker-svg">
+                        <path
+                          d={stk.svg}
+                          fill={stk.fill}
+                          stroke="#2c211a"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span className="sticker-name-label">{stk.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* ARRANGE / LAYERS PANEL */}
+            {/* ARRANGE */}
             {(activeTool === "arrange" || activeTool === "select") && (
               <div className="drawer-section">
                 <span className="drawer-label">Element Layering</span>
@@ -523,14 +600,14 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
                     disabled={!hasSelection}
                     onClick={onBringForward}
                   >
-                    Bring to Front
+                    Bring Forward
                   </button>
                   <button
                     className="action-pill-btn"
                     disabled={!hasSelection}
                     onClick={onSendBackward}
                   >
-                    Send to Back
+                    Send Backward
                   </button>
                   <button
                     className="action-pill-btn"

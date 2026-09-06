@@ -23,6 +23,7 @@ interface SpreadCanvasProps {
   onCanvasReady: (canvas: Canvas) => void;
   onSelectionChange: (target: any | null) => void;
   onSaveState: (canvas: Canvas) => void;
+  onLayersChange: (canvas: Canvas) => void;
 }
 
 export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
@@ -40,14 +41,20 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   onCanvasReady,
   onSelectionChange,
   onSaveState,
+  onLayersChange,
 }) => {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
   const fabricRef = useRef<Canvas | null>(null);
 
   const onSaveStateRef = useRef(onSaveState);
+  const onLayersChangeRef = useRef(onLayersChange);
+  const brushSubtypeRef = useRef(brushSubtype);
+
   useEffect(() => {
     onSaveStateRef.current = onSaveState;
-  }, [onSaveState]);
+    onLayersChangeRef.current = onLayersChange;
+    brushSubtypeRef.current = brushSubtype;
+  });
 
   useEffect(() => {
     if (!canvasElRef.current) return;
@@ -75,8 +82,28 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     brush.decimate = 0;
     canvas.freeDrawingBrush = brush;
 
-    canvas.on("path:created", () => onSaveStateRef.current(canvas));
-    canvas.on("object:modified", () => onSaveStateRef.current(canvas));
+    // Fix eraser on path creation
+    canvas.on("path:created", (opt: any) => {
+      if (brushSubtypeRef.current === "eraser") {
+        opt.path.set({
+          globalCompositeOperation: "destination-out",
+          stroke: "rgba(0,0,0,1)",
+          selectable: false,
+          evented: false,
+        });
+        canvas.renderAll();
+      }
+      onSaveStateRef.current(canvas);
+      onLayersChangeRef.current(canvas);
+    });
+
+    canvas.on("object:modified", () => {
+      onSaveStateRef.current(canvas);
+      onLayersChangeRef.current(canvas);
+    });
+
+    canvas.on("object:added", () => onLayersChangeRef.current(canvas));
+    canvas.on("object:removed", () => onLayersChangeRef.current(canvas));
 
     canvas.on("selection:created", (e) =>
       onSelectionChange(e.selected ? e.selected[0] : null)
@@ -93,6 +120,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       canvas.loadFromJSON(canvasData).then(() => {
         canvas.backgroundColor = "transparent";
         canvas.renderAll();
+        onLayersChangeRef.current(canvas);
       });
     }
 
@@ -101,7 +129,6 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     };
   }, []);
 
-  // Update brush characteristics dynamically
   useEffect(() => {
     const canvas = fabricRef.current;
     if (!canvas) return;
@@ -116,7 +143,6 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       b.decimate = 0;
 
       if (toolType === "wand") {
-        // Enchanted magical glow brush
         b.width = brushSize * 1.5;
         b.color = brushColor;
         b.globalCompositeOperation = "source-over";
@@ -127,18 +153,17 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
           offsetY: 0,
         });
       } else if (toolType === "pencil") {
-        // Fine graphite line
         b.shadow = null;
         b.width = Math.max(1, brushSize);
         b.color = brushColor;
         b.globalCompositeOperation = "source-over";
       } else {
-        // Standard Brush Atelier
         b.shadow = null;
         if (brushSubtype === "eraser") {
-          b.color = "rgba(0,0,0,1)";
-          b.width = brushSize * 1.8;
-          b.globalCompositeOperation = "destination-out";
+          // Visible preview while drawing
+          b.color = "rgba(255, 255, 255, 0.85)";
+          b.width = brushSize * 1.6;
+          b.globalCompositeOperation = "source-over";
         } else if (brushSubtype === "watercolor") {
           b.color = brushColor;
           b.width = brushSize * 2;

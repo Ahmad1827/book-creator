@@ -1705,3 +1705,258 @@ body, html, #root {
   opacity: 0.25;
   cursor: not-allowed;
 }
+
+/* RIGHT COLLAPSIBLE LAYERS PANEL */
+.lofi-layers-panel {
+  display: flex;
+  height: 100%;
+  position: relative;
+  z-index: 25;
+  transition: all 0.2s ease;
+}
+
+.lofi-layers-panel.closed {
+  width: 44px;
+}
+
+.lofi-layers-panel.open {
+  width: 280px;
+}
+
+.layers-toggle-handle {
+  width: 44px;
+  height: 100%;
+  background: #181310;
+  border-left: 1px solid #281f1a;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0;
+  gap: 8px;
+  cursor: pointer;
+  color: #a89284;
+  transition: background 0.15s ease;
+}
+
+.layers-toggle-handle:hover {
+  background: #241c17;
+  color: #f7ebe1;
+}
+
+.handle-icon {
+  font-size: 18px;
+}
+
+.handle-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.layers-count-pill {
+  font-size: 9px;
+  background: #c68b59;
+  color: #17120f;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
+.layers-panel-content {
+  flex: 1;
+  background: #1c1613;
+  border-left: 1px solid #281f1a;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -6px 0 20px rgba(0, 0, 0, 0.35);
+  animation: slideLayers 0.18s ease-out;
+}
+
+@keyframes slideLayers {
+  from { width: 0; opacity: 0; }
+  to { width: 236px; opacity: 1; }
+}
+
+.layers-header {
+  height: 48px;
+  padding: 0 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #2a2019;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.layers-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f7ebe1;
+}
+
+.layers-sub {
+  font-size: 9px;
+  color: #8c7668;
+}
+
+.layers-close-btn {
+  background: transparent;
+  border: none;
+  color: #8c7668;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.layers-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.empty-layers-msg {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: #8c7668;
+  line-height: 1.5;
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #231b17;
+  border: 1px solid #33261f;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.layer-row:hover {
+  background: #2a201a;
+  border-color: #4a382d;
+}
+
+.layer-row.selected {
+  background: #362820;
+  border-color: #c68b59;
+  box-shadow: 0 0 8px rgba(198, 139, 89, 0.2);
+}
+
+.layer-row.hidden-layer {
+  opacity: 0.45;
+}
+
+.layer-type-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.layer-info-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.layer-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f7ebe1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layer-meta {
+  font-size: 9px;
+  color: #8c7668;
+}
+
+.layer-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.layer-btn-icon {
+  background: transparent;
+  border: none;
+  color: #8c7668;
+  font-size: 10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.layer-btn-icon:hover:not(:disabled) {
+  background: #33261f;
+  color: #f7ebe1;
+}
+
+.layer-btn-icon:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.layer-btn-icon.active-state {
+  color: #f59e0b;
+}
+
+.layer-btn-icon.muted-state {
+  color: #ef4444;
+}
+
+.layer-btn-icon.danger:hover {
+  color: #ef4444;
+}
+
+/* VECTOR STICKERS GRID */
+.vector-sticker-card {
+  background: #241c17;
+  border: 1px solid #362920;
+  padding: 8px 4px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vector-sticker-card:hover {
+  background: #31251e;
+  border-color: #c68b59;
+  transform: translateY(-2px);
+}
+
+.vector-sticker-svg {
+  width: 36px;
+  height: 36px;
+}
+
+.sticker-name-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: #d8c3b4;
+  text-align: center;
+}

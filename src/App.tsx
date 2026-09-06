@@ -7,7 +7,9 @@ import {
   BrushSubtype,
   WandSubtype,
   ShapeType,
+  StickerDefinition,
 } from "./components/DrawingToolbox";
+import { LayersPanel, LayerItem } from "./components/LayersPanel";
 import { ThemePreviewModal } from "./components/ThemePreviewModal";
 import { BookProject } from "./types";
 import { THEMES, FONTS } from "./constants";
@@ -28,6 +30,11 @@ export default function App() {
   const activeCanvasRef = useRef<Canvas | null>(null);
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
 
+  // Layers panel state
+  const [isLayersOpen, setIsLayersOpen] = useState<boolean>(true);
+  const [layers, setLayers] = useState<LayerItem[]>([]);
+
+  // History
   const undoStackRef = useRef<any[]>([]);
   const redoStackRef = useRef<any[]>([]);
   const isHistoryLockedRef = useRef<boolean>(false);
@@ -36,16 +43,16 @@ export default function App() {
 
   // Toolbox state
   const [activeTool, setActiveTool] = useState<ToolId>("brush");
-  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [mode, setMode] = useState<"select" | "draw" | "pan">("draw");
 
   const [brushSubtype, setBrushSubtype] = useState<BrushSubtype>("ink");
   const [wandSubtype, setWandSubtype] = useState<WandSubtype>("stardust");
-  const [brushColor, setBrushColor] = useState<string>("#2c211a");
+  const [brushColor, setBrushColor] = useState<string>("#1d291e");
   const [brushSize, setBrushSize] = useState<number>(5);
   const [brushOpacity, setBrushOpacity] = useState<number>(1);
 
-  // Shapes & Stamps
+  // Shapes
   const [shapeFill, setShapeFill] = useState<string>("#dda15e");
   const [shapeStroke, setShapeStroke] = useState<string>("#2c211a");
   const [shapeStrokeWidth, setShapeStrokeWidth] = useState<number>(2);
@@ -87,6 +94,57 @@ export default function App() {
   const totalPages = activeProject ? activeProject.spreads.length * 2 : 0;
   const pageList = Array.from({ length: totalPages }, (_, i) => i + 1);
 
+  // Sync Layers function
+  const updateLayersList = useCallback((c?: Canvas) => {
+    const canvas = c || activeCanvasRef.current;
+    if (!canvas) return;
+
+    const rawObjects = canvas.getObjects();
+    const reversed = [...rawObjects].reverse();
+
+    const layerItems: LayerItem[] = reversed.map((obj: any, idx: number) => {
+      let icon = "✏️";
+      let name = "Drawing Stroke";
+      let type = "Brush Path";
+
+      if (obj.type === "i-text" || obj.type === "text") {
+        icon = "🔤";
+        name = obj.text ? `"${obj.text.substring(0, 16)}..."` : "Story Text";
+        type = "Typography";
+      } else if (obj.type === "path") {
+        if (obj.stickerId) {
+          icon = "⭐";
+          name = obj.stickerName || "Story Sticker";
+          type = "Sticker Stamp";
+        } else if (obj.globalCompositeOperation === "destination-out") {
+          icon = "🧹";
+          name = "Eraser Cut";
+          type = "Eraser Path";
+        } else {
+          icon = "✒️";
+          name = `Stroke #${reversed.length - idx}`;
+          type = "Vector Path";
+        }
+      } else if (obj.type === "circle" || obj.type === "rect") {
+        icon = "🔷";
+        name = `${obj.type.charAt(0).toUpperCase() + obj.type.slice(1)} Shape`;
+        type = "Geometry";
+      }
+
+      return {
+        id: obj.id || `layer-${idx}-${Date.now()}`,
+        type,
+        name,
+        icon,
+        visible: obj.visible !== false,
+        locked: !obj.selectable,
+        fabricObj: obj,
+      };
+    });
+
+    setLayers(layerItems);
+  }, []);
+
   const recordCanvasState = useCallback((targetCanvas?: Canvas) => {
     const c = targetCanvas || activeCanvasRef.current;
     if (!c || isHistoryLockedRef.current) return;
@@ -99,7 +157,8 @@ export default function App() {
     redoStackRef.current = [];
     setCanUndo(undoStackRef.current.length > 1);
     setCanRedo(false);
-  }, []);
+    updateLayersList(c);
+  }, [updateLayersList]);
 
   const handleUndo = useCallback(() => {
     const c = activeCanvasRef.current;
@@ -116,8 +175,9 @@ export default function App() {
       isHistoryLockedRef.current = false;
       setCanUndo(undoStackRef.current.length > 1);
       setCanRedo(redoStackRef.current.length > 0);
+      updateLayersList(c);
     });
-  }, []);
+  }, [updateLayersList]);
 
   const handleRedo = useCallback(() => {
     const c = activeCanvasRef.current;
@@ -133,15 +193,16 @@ export default function App() {
       isHistoryLockedRef.current = false;
       setCanUndo(undoStackRef.current.length > 1);
       setCanRedo(redoStackRef.current.length > 0);
+      updateLayersList(c);
     });
-  }, []);
+  }, [updateLayersList]);
 
-  const deleteElement = useCallback(() => {
+  const deleteElement = useCallback((specificObj?: any) => {
     const c = activeCanvasRef.current;
     if (!c) return;
-    const active = c.getActiveObject();
-    if (active) {
-      c.remove(active);
+    const target = specificObj || c.getActiveObject();
+    if (target) {
+      c.remove(target);
       c.discardActiveObject();
       c.renderAll();
       setSelectedObject(null);
@@ -186,6 +247,7 @@ export default function App() {
     redoStackRef.current = [];
     setCanUndo(false);
     setCanRedo(false);
+    updateLayersList(canvas);
   };
 
   const handleSelectTool = (tool: ToolId) => {
@@ -328,53 +390,87 @@ export default function App() {
     recordCanvasState(c);
   };
 
-  const handleAddSticker = (sticker: string) => {
+  // Guaranteed vector sticker rendering
+  const handleAddSticker = (sticker: StickerDefinition) => {
     const c = activeCanvasRef.current;
     if (!c) return;
 
     const posX = activeSide === "left" ? 240 : 840;
     const posY = 220;
 
-    const stickerText = new IText(sticker, {
+    const stickerPath = new Path(sticker.svg, {
       left: posX,
       top: posY,
-      fontSize: 56,
-      fontFamily: "Arial",
-      padding: 6,
+      fill: sticker.fill,
+      stroke: "#2c211a",
+      strokeWidth: 3,
+      scaleX: 0.9,
+      scaleY: 0.9,
       borderColor: currentTheme.accentColor,
       cornerColor: currentTheme.accentColor,
       cornerSize: 8,
       transparentCorners: false,
     });
 
-    c.add(stickerText);
-    c.setActiveObject(stickerText);
+    (stickerPath as any).stickerId = sticker.id;
+    (stickerPath as any).stickerName = sticker.name;
+
+    c.add(stickerPath);
+    c.setActiveObject(stickerPath);
     setMode("select");
     setActiveTool("select");
     c.renderAll();
     recordCanvasState(c);
   };
 
-  const handleBringForward = () => {
+  // Layers panel interaction handlers
+  const handleSelectLayer = (obj: any) => {
     const c = activeCanvasRef.current;
     if (!c) return;
-    const active = c.getActiveObject();
-    if (active) {
-      c.bringObjectToFront(active);
-      c.renderAll();
-      recordCanvasState(c);
-    }
+    c.setActiveObject(obj);
+    setSelectedObject(obj);
+    setMode("select");
+    setActiveTool("select");
+    c.renderAll();
   };
 
-  const handleSendBackward = () => {
+  const handleToggleVisibility = (obj: any) => {
     const c = activeCanvasRef.current;
     if (!c) return;
-    const active = c.getActiveObject();
-    if (active) {
-      c.sendObjectToBack(active);
-      c.renderAll();
-      recordCanvasState(c);
-    }
+    obj.set("visible", !obj.visible);
+    c.renderAll();
+    updateLayersList(c);
+    recordCanvasState(c);
+  };
+
+  const handleToggleLock = (obj: any) => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+    const isNowLocked = obj.selectable;
+    obj.set({
+      selectable: !isNowLocked,
+      evented: !isNowLocked,
+    });
+    c.renderAll();
+    updateLayersList(c);
+  };
+
+  const handleMoveLayerUp = (obj: any) => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+    c.bringObjectForward(obj);
+    c.renderAll();
+    updateLayersList(c);
+    recordCanvasState(c);
+  };
+
+  const handleMoveLayerDown = (obj: any) => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+    c.sendObjectBackwards(obj);
+    c.renderAll();
+    updateLayersList(c);
+    recordCanvasState(c);
   };
 
   const handleDuplicate = () => {
@@ -480,6 +576,7 @@ export default function App() {
             redoStackRef.current = [];
             setCanUndo(false);
             setCanRedo(false);
+            updateLayersList(c);
           });
         } else {
           c.clear();
@@ -490,6 +587,7 @@ export default function App() {
           redoStackRef.current = [];
           setCanUndo(false);
           setCanRedo(false);
+          updateLayersList(c);
         }
       }
     }, 450);
@@ -963,7 +1061,7 @@ export default function App() {
       </header>
 
       <div className="lofi-editor-body">
-        {/* DUAL RAIL + FLYOUT DRAWER */}
+        {/* LEFT DUAL RAIL + FLYOUT */}
         <DrawingToolbox
           activeTool={activeTool}
           onSelectTool={handleSelectTool}
@@ -988,12 +1086,13 @@ export default function App() {
           onAddShape={handleAddShape}
           onAddSticker={handleAddSticker}
           hasSelection={!!selectedObject}
-          onBringForward={handleBringForward}
-          onSendBackward={handleSendBackward}
+          onBringForward={() => selectedObject && handleMoveLayerUp(selectedObject)}
+          onSendBackward={() => selectedObject && handleMoveLayerDown(selectedObject)}
           onDuplicate={handleDuplicate}
-          onDelete={deleteElement}
+          onDelete={() => deleteElement()}
         />
 
+        {/* CENTER VIEWPORT */}
         <main
           className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
             isPanning ? "grabbing" : ""
@@ -1024,9 +1123,24 @@ export default function App() {
               onCanvasReady={handleCanvasReady}
               onSelectionChange={setSelectedObject}
               onSaveState={recordCanvasState}
+              onLayersChange={updateLayersList}
             />
           </div>
         </main>
+
+        {/* RIGHT COLLAPSIBLE LAYERS PANEL */}
+        <LayersPanel
+          isOpen={isLayersOpen}
+          onToggle={() => setIsLayersOpen(!isLayersOpen)}
+          layers={layers}
+          selectedObj={selectedObject}
+          onSelectLayer={handleSelectLayer}
+          onToggleVisibility={handleToggleVisibility}
+          onToggleLock={handleToggleLock}
+          onMoveUp={handleMoveLayerUp}
+          onMoveDown={handleMoveLayerDown}
+          onDeleteLayer={(obj) => deleteElement(obj)}
+        />
       </div>
 
       <footer className="lofi-bottom-tray">
