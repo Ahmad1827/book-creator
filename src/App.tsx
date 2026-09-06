@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Canvas, IText } from "fabric";
 import { SpreadCanvas } from "./components/SpreadCanvas";
 import { ThemePreviewModal } from "./components/ThemePreviewModal";
@@ -18,7 +18,14 @@ export default function App() {
   } | null>(null);
 
   const [activeCanvas, setActiveCanvas] = useState<Canvas | null>(null);
+  const activeCanvasRef = useRef<Canvas | null>(null);
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
+
+  const undoStackRef = useRef<any[]>([]);
+  const redoStackRef = useRef<any[]>([]);
+  const isHistoryLockedRef = useRef<boolean>(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   const [mode, setMode] = useState<"select" | "draw" | "pan">("select");
   const [brushColor, setBrushColor] = useState<string>("#1d291e");
@@ -58,6 +65,99 @@ export default function App() {
   const totalPages = activeProject ? activeProject.spreads.length * 2 : 0;
   const pageList = Array.from({ length: totalPages }, (_, i) => i + 1);
 
+  const recordCanvasState = useCallback((targetCanvas?: Canvas) => {
+    const c = targetCanvas || activeCanvasRef.current;
+    if (!c || isHistoryLockedRef.current) return;
+
+    const state = c.toJSON();
+    undoStackRef.current.push(state);
+    if (undoStackRef.current.length > 50) {
+      undoStackRef.current.shift();
+    }
+    redoStackRef.current = [];
+    setCanUndo(undoStackRef.current.length > 1);
+    setCanRedo(false);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    const c = activeCanvasRef.current;
+    if (!c || undoStackRef.current.length <= 1) return;
+
+    const currentState = undoStackRef.current.pop()!;
+    redoStackRef.current.push(currentState);
+    const previousState = undoStackRef.current[undoStackRef.current.length - 1];
+
+    isHistoryLockedRef.current = true;
+    c.loadFromJSON(previousState).then(() => {
+      c.backgroundColor = "transparent";
+      c.renderAll();
+      isHistoryLockedRef.current = false;
+      setCanUndo(undoStackRef.current.length > 1);
+      setCanRedo(redoStackRef.current.length > 0);
+    });
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    const c = activeCanvasRef.current;
+    if (!c || redoStackRef.current.length === 0) return;
+
+    const nextState = redoStackRef.current.pop()!;
+    undoStackRef.current.push(nextState);
+
+    isHistoryLockedRef.current = true;
+    c.loadFromJSON(nextState).then(() => {
+      c.backgroundColor = "transparent";
+      c.renderAll();
+      isHistoryLockedRef.current = false;
+      setCanUndo(undoStackRef.current.length > 1);
+      setCanRedo(redoStackRef.current.length > 0);
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const c = activeCanvasRef.current;
+      const activeObj = c?.getActiveObject() as any;
+      if (activeObj && activeObj.isEditing) {
+        return;
+      }
+
+      const isCtrl = e.ctrlKey || e.metaKey;
+
+      if (isCtrl && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (isCtrl && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleRedo();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (activeObj && !activeObj.isEditing) {
+          e.preventDefault();
+          deleteElement();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [handleUndo, handleRedo]);
+
+  const handleCanvasReady = (canvas: Canvas) => {
+    activeCanvasRef.current = canvas;
+    setActiveCanvas(canvas);
+    undoStackRef.current = [canvas.toJSON()];
+    redoStackRef.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
+  };
+
   const createNewBook = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -89,8 +189,9 @@ export default function App() {
   };
 
   const saveCurrentSpread = () => {
-    if (!activeCanvas || !activeProject || !activeSpread) return;
-    const json = activeCanvas.toJSON();
+    const c = activeCanvasRef.current;
+    if (!c || !activeProject || !activeSpread) return;
+    const json = c.toJSON();
     setProjects((prev) =>
       prev.map((p) =>
         p.id === activeProjectId
@@ -106,6 +207,7 @@ export default function App() {
   };
 
   const goToPage = (page: number) => {
+    const c = activeCanvasRef.current;
     if (
       !activeProject ||
       !activeSpread ||
@@ -129,17 +231,28 @@ export default function App() {
 
     setTimeout(() => {
       setActivePageNum(page);
-      if (needsLoad && activeCanvas) {
-        activeCanvas.discardActiveObject();
+      if (needsLoad && c) {
+        c.discardActiveObject();
+        isHistoryLockedRef.current = true;
         if (targetSpread.canvasData) {
-          activeCanvas.loadFromJSON(targetSpread.canvasData).then(() => {
-            activeCanvas.backgroundColor = "transparent";
-            activeCanvas.renderAll();
+          c.loadFromJSON(targetSpread.canvasData).then(() => {
+            c.backgroundColor = "transparent";
+            c.renderAll();
+            isHistoryLockedRef.current = false;
+            undoStackRef.current = [c.toJSON()];
+            redoStackRef.current = [];
+            setCanUndo(false);
+            setCanRedo(false);
           });
         } else {
-          activeCanvas.clear();
-          activeCanvas.backgroundColor = "transparent";
-          activeCanvas.renderAll();
+          c.clear();
+          c.backgroundColor = "transparent";
+          c.renderAll();
+          isHistoryLockedRef.current = false;
+          undoStackRef.current = [c.toJSON()];
+          redoStackRef.current = [];
+          setCanUndo(false);
+          setCanRedo(false);
         }
       }
     }, 450);
@@ -172,7 +285,8 @@ export default function App() {
   };
 
   const addTextElement = async () => {
-    if (!activeCanvas) return;
+    const c = activeCanvasRef.current;
+    if (!c) return;
 
     try {
       await (document as any).fonts.load(`${fontSize}px "${selectedFont}"`);
@@ -196,16 +310,17 @@ export default function App() {
       transparentCorners: false,
     });
 
-    activeCanvas.add(text);
-    activeCanvas.setActiveObject(text);
+    c.add(text);
+    c.setActiveObject(text);
     setMode("select");
-    activeCanvas.renderAll();
+    c.renderAll();
+    recordCanvasState(c);
   };
 
   const updateTextFont = async (font: string) => {
     setSelectedFont(font);
-    if (!activeCanvas || !selectedObject || selectedObject.type !== "i-text")
-      return;
+    const c = activeCanvasRef.current;
+    if (!c || !selectedObject || selectedObject.type !== "i-text") return;
 
     const targetSize = selectedObject.fontSize || fontSize;
     try {
@@ -218,29 +333,33 @@ export default function App() {
     if (typeof (selectedObject as any).initDimensions === "function") {
       (selectedObject as any).initDimensions();
     }
-    activeCanvas.requestRenderAll();
+    c.requestRenderAll();
+    recordCanvasState(c);
   };
 
   const updateTextFontSize = (size: number) => {
     setFontSize(size);
-    if (!activeCanvas || !selectedObject || selectedObject.type !== "i-text")
-      return;
+    const c = activeCanvasRef.current;
+    if (!c || !selectedObject || selectedObject.type !== "i-text") return;
 
     selectedObject.set("fontSize", size);
     if (typeof (selectedObject as any).initDimensions === "function") {
       (selectedObject as any).initDimensions();
     }
-    activeCanvas.requestRenderAll();
+    c.requestRenderAll();
+    recordCanvasState(c);
   };
 
   const deleteElement = () => {
-    if (!activeCanvas) return;
-    const active = activeCanvas.getActiveObject();
+    const c = activeCanvasRef.current;
+    if (!c) return;
+    const active = c.getActiveObject();
     if (active) {
-      activeCanvas.remove(active);
-      activeCanvas.discardActiveObject();
-      activeCanvas.renderAll();
+      c.remove(active);
+      c.discardActiveObject();
+      c.renderAll();
       setSelectedObject(null);
+      recordCanvasState(c);
     }
   };
 
@@ -281,13 +400,14 @@ export default function App() {
   };
 
   const handleExport = async () => {
-    if (!activeCanvas || !activeProject || !activeSpread) return;
+    const c = activeCanvasRef.current;
+    if (!c || !activeProject || !activeSpread) return;
     setIsExporting(true);
     try {
       saveCurrentSpread();
       const pdfBytes = await exportBookToPdf(
         activeProject.spreads,
-        activeCanvas,
+        c,
         activeSpread.id,
         currentTheme
       );
@@ -332,8 +452,8 @@ export default function App() {
               <div className="mug-sketch" />
               <h2>A quiet blank notebook awaits</h2>
               <p>
-                Choose from rich storybook themes with custom corner artwork, warm
-                fonts, and hand-drawn pages.
+                Choose from rich storybook themes with custom corner artwork,
+                warm fonts, and crisp hand-drawn pages.
               </p>
               <button
                 className="cafe-btn primary"
@@ -511,6 +631,25 @@ export default function App() {
         </div>
 
         <div className="topbar-center-tools">
+          <div className="history-btn-group">
+            <button
+              className="history-action-btn"
+              disabled={!canUndo}
+              onClick={handleUndo}
+              title="Undo (Ctrl+Z)"
+            >
+              ↶ Undo
+            </button>
+            <button
+              className="history-action-btn"
+              disabled={!canRedo}
+              onClick={handleRedo}
+              title="Redo (Ctrl+Y / Ctrl+Shift+Z)"
+            >
+              ↷ Redo
+            </button>
+          </div>
+
           <div className="lofi-pill-switch">
             <button
               className={`pill-option ${mode === "select" ? "active" : ""}`}
@@ -651,8 +790,9 @@ export default function App() {
             canvasData={activeSpread.canvasData}
             activeSide={activeSide}
             turnState={turnState}
-            onCanvasReady={setActiveCanvas}
+            onCanvasReady={handleCanvasReady}
             onSelectionChange={setSelectedObject}
+            onSaveState={recordCanvasState}
           />
         </div>
       </main>

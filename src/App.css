@@ -514,6 +514,42 @@ body, html, #root {
   gap: 16px;
 }
 
+.history-btn-group {
+  display: flex;
+  background: #15110f;
+  border: 1px solid #2d231e;
+  border-radius: 16px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.history-action-btn {
+  background: transparent;
+  border: none;
+  color: #d8c3b4;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.history-action-btn:hover:not(:disabled) {
+  background: #2b221d;
+  color: #f7ebe1;
+}
+
+.history-action-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.canvas-viewport-layer canvas {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
 .lofi-pill-switch {
   display: flex;
   background: #15110f;
@@ -995,4 +1031,8 @@ body, html, #root {
   background: transparent;
   border-style: dashed;
   color: #c68b59;
+}
+
+.canvas-viewport-layer canvas {
+  image-rendering: auto;
 }

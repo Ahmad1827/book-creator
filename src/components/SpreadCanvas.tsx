@@ -1,7 +1,11 @@
 import React, { useEffect, useRef } from "react";
-import { Canvas, PencilBrush } from "fabric";
+import { Canvas, PencilBrush, config } from "fabric";
 import { BookTheme } from "../types";
 import { ThemeDecors } from "./ThemeDecors";
+
+if (config) {
+  config.devicePixelRatio = Math.max(window.devicePixelRatio || 1, 2);
+}
 
 interface SpreadCanvasProps {
   theme: BookTheme;
@@ -13,6 +17,7 @@ interface SpreadCanvasProps {
   turnState: { active: boolean; direction: "next" | "prev" } | null;
   onCanvasReady: (canvas: Canvas) => void;
   onSelectionChange: (target: any | null) => void;
+  onSaveState: (canvas: Canvas) => void;
 }
 
 export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
@@ -25,9 +30,15 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   turnState,
   onCanvasReady,
   onSelectionChange,
+  onSaveState,
 }) => {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
   const fabricRef = useRef<Canvas | null>(null);
+
+  const onSaveStateRef = useRef(onSaveState);
+  useEffect(() => {
+    onSaveStateRef.current = onSaveState;
+  }, [onSaveState]);
 
   useEffect(() => {
     if (!canvasElRef.current) return;
@@ -38,13 +49,30 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       backgroundColor: "transparent",
       isDrawingMode: mode === "draw",
       selection: mode === "select",
+      enableRetinaScaling: true,
     });
+
+    const ctx = canvas.getContext();
+    if (ctx) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+    }
 
     const brush = new PencilBrush(canvas);
     brush.color = brushColor;
     brush.width = brushSize;
-    brush.decimate = 2;
+    brush.strokeLineCap = "round";
+    brush.strokeLineJoin = "round";
+    brush.decimate = 0;
     canvas.freeDrawingBrush = brush;
+
+    canvas.on("path:created", () => {
+      onSaveStateRef.current(canvas);
+    });
+
+    canvas.on("object:modified", () => {
+      onSaveStateRef.current(canvas);
+    });
 
     canvas.on("selection:created", (e) =>
       onSelectionChange(e.selected ? e.selected[0] : null)
@@ -79,6 +107,9 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     if (canvas.freeDrawingBrush) {
       canvas.freeDrawingBrush.color = brushColor;
       canvas.freeDrawingBrush.width = brushSize;
+      canvas.freeDrawingBrush.strokeLineCap = "round";
+      canvas.freeDrawingBrush.strokeLineJoin = "round";
+      canvas.freeDrawingBrush.decimate = 0;
     }
   }, [mode, brushColor, brushSize]);
 
