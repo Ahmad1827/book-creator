@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import { Canvas, PencilBrush, config } from "fabric";
+import { Canvas, PencilBrush, Shadow, config } from "fabric";
 import { BookTheme } from "../types";
 import { ThemeDecors } from "./ThemeDecors";
-import { BrushType } from "./DrawingToolbox";
+import { BrushSubtype, WandSubtype } from "./DrawingToolbox";
 
 if (config) {
   config.devicePixelRatio = Math.max(window.devicePixelRatio || 1, 2);
@@ -11,9 +11,12 @@ if (config) {
 interface SpreadCanvasProps {
   theme: BookTheme;
   mode: "select" | "draw" | "pan";
-  brushType: BrushType;
+  toolType: "pencil" | "brush" | "wand";
+  brushSubtype: BrushSubtype;
+  wandSubtype: WandSubtype;
   brushColor: string;
   brushSize: number;
+  brushOpacity: number;
   canvasData: any | null;
   activeSide: "left" | "right";
   turnState: { active: boolean; direction: "next" | "prev" } | null;
@@ -25,9 +28,12 @@ interface SpreadCanvasProps {
 export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   theme,
   mode,
-  brushType,
+  toolType,
+  brushSubtype,
+  wandSubtype,
   brushColor,
   brushSize,
+  brushOpacity,
   canvasData,
   activeSide,
   turnState,
@@ -69,13 +75,8 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     brush.decimate = 0;
     canvas.freeDrawingBrush = brush;
 
-    canvas.on("path:created", () => {
-      onSaveStateRef.current(canvas);
-    });
-
-    canvas.on("object:modified", () => {
-      onSaveStateRef.current(canvas);
-    });
+    canvas.on("path:created", () => onSaveStateRef.current(canvas));
+    canvas.on("object:modified", () => onSaveStateRef.current(canvas));
 
     canvas.on("selection:created", (e) =>
       onSelectionChange(e.selected ? e.selected[0] : null)
@@ -100,6 +101,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     };
   }, []);
 
+  // Update brush characteristics dynamically
   useEffect(() => {
     const canvas = fabricRef.current;
     if (!canvas) return;
@@ -113,28 +115,42 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       b.strokeLineJoin = "round";
       b.decimate = 0;
 
-      if (brushType === "eraser") {
-        b.color = "rgba(0,0,0,1)";
-        b.width = brushSize * 1.6;
-        b.globalCompositeOperation = "destination-out";
-      } else if (brushType === "watercolor") {
+      if (toolType === "wand") {
+        // Enchanted magical glow brush
+        b.width = brushSize * 1.5;
         b.color = brushColor;
-        b.width = brushSize * 1.8;
         b.globalCompositeOperation = "source-over";
-        b.strokeDashArray = null;
-      } else if (brushType === "crayon") {
+        b.shadow = new Shadow({
+          color: brushColor,
+          blur: 14,
+          offsetX: 0,
+          offsetY: 0,
+        });
+      } else if (toolType === "pencil") {
+        // Fine graphite line
+        b.shadow = null;
+        b.width = Math.max(1, brushSize);
         b.color = brushColor;
-        b.width = brushSize * 1.2;
         b.globalCompositeOperation = "source-over";
-        b.strokeDashArray = null;
       } else {
-        b.color = brushColor;
-        b.width = brushSize;
-        b.globalCompositeOperation = "source-over";
-        b.strokeDashArray = null;
+        // Standard Brush Atelier
+        b.shadow = null;
+        if (brushSubtype === "eraser") {
+          b.color = "rgba(0,0,0,1)";
+          b.width = brushSize * 1.8;
+          b.globalCompositeOperation = "destination-out";
+        } else if (brushSubtype === "watercolor") {
+          b.color = brushColor;
+          b.width = brushSize * 2;
+          b.globalCompositeOperation = "source-over";
+        } else {
+          b.color = brushColor;
+          b.width = brushSize;
+          b.globalCompositeOperation = "source-over";
+        }
       }
     }
-  }, [mode, brushType, brushColor, brushSize]);
+  }, [mode, toolType, brushSubtype, wandSubtype, brushColor, brushSize, brushOpacity]);
 
   return (
     <div

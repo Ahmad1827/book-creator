@@ -1,10 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Canvas, IText, Path, Rect, Circle } from "fabric";
 import { SpreadCanvas } from "./components/SpreadCanvas";
-import { DrawingToolbox, BrushType, ShapeType } from "./components/DrawingToolbox";
+import {
+  DrawingToolbox,
+  ToolId,
+  BrushSubtype,
+  WandSubtype,
+  ShapeType,
+} from "./components/DrawingToolbox";
 import { ThemePreviewModal } from "./components/ThemePreviewModal";
 import { BookProject } from "./types";
-import { THEMES, FONTS, LOFI_PALETTE } from "./constants";
+import { THEMES, FONTS } from "./constants";
 import { exportBookToPdf } from "./utils/pdfExport";
 import "./App.css";
 
@@ -28,22 +34,33 @@ export default function App() {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
+  // Toolbox state
+  const [activeTool, setActiveTool] = useState<ToolId>("brush");
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(true);
   const [mode, setMode] = useState<"select" | "draw" | "pan">("draw");
-  const [brushType, setBrushType] = useState<BrushType>("pen");
-  const [brushColor, setBrushColor] = useState<string>("#1d291e");
-  const [brushSize, setBrushSize] = useState<number>(6);
 
+  const [brushSubtype, setBrushSubtype] = useState<BrushSubtype>("ink");
+  const [wandSubtype, setWandSubtype] = useState<WandSubtype>("stardust");
+  const [brushColor, setBrushColor] = useState<string>("#2c211a");
+  const [brushSize, setBrushSize] = useState<number>(5);
+  const [brushOpacity, setBrushOpacity] = useState<number>(1);
+
+  // Shapes & Stamps
   const [shapeFill, setShapeFill] = useState<string>("#dda15e");
   const [shapeStroke, setShapeStroke] = useState<string>("#2c211a");
+  const [shapeStrokeWidth, setShapeStrokeWidth] = useState<number>(2);
 
+  // Viewport Zoom/Pan
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  // Typography
   const [selectedFont, setSelectedFont] = useState<string>("Patrick Hand");
   const [fontSize, setFontSize] = useState<number>(34);
 
+  // Modals
   const [isCreatingModal, setIsCreatingModal] = useState<boolean>(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
@@ -136,20 +153,15 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const c = activeCanvasRef.current;
       const activeObj = c?.getActiveObject() as any;
-      if (activeObj && activeObj.isEditing) {
-        return;
-      }
+      if (activeObj && activeObj.isEditing) return;
 
       const isCtrl = e.ctrlKey || e.metaKey;
 
       if (isCtrl && e.key.toLowerCase() === "z") {
         e.preventDefault();
         e.stopPropagation();
-        if (e.shiftKey) {
-          handleRedo();
-        } else {
-          handleUndo();
-        }
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
       } else if (isCtrl && e.key.toLowerCase() === "y") {
         e.preventDefault();
         e.stopPropagation();
@@ -176,6 +188,15 @@ export default function App() {
     setCanRedo(false);
   };
 
+  const handleSelectTool = (tool: ToolId) => {
+    setActiveTool(tool);
+    if (tool === "select" || tool === "arrange") {
+      setMode("select");
+    } else if (tool === "pencil" || tool === "brush" || tool === "wand") {
+      setMode("draw");
+    }
+  };
+
   const handleAddShape = (type: ShapeType) => {
     const c = activeCanvasRef.current;
     if (!c) return;
@@ -193,7 +214,7 @@ export default function App() {
           top: posY,
           fill: shapeFill,
           stroke: shapeStroke,
-          strokeWidth: 2,
+          strokeWidth: shapeStrokeWidth,
           scaleX: 0.9,
           scaleY: 0.9,
         }
@@ -206,7 +227,7 @@ export default function App() {
           top: posY,
           fill: shapeFill,
           stroke: shapeStroke,
-          strokeWidth: 2,
+          strokeWidth: shapeStrokeWidth,
           scaleX: 0.45,
           scaleY: 0.45,
         }
@@ -219,7 +240,7 @@ export default function App() {
           top: posY,
           fill: shapeFill,
           stroke: shapeStroke,
-          strokeWidth: 2,
+          strokeWidth: shapeStrokeWidth,
           scaleX: 0.6,
           scaleY: 0.6,
         }
@@ -232,9 +253,48 @@ export default function App() {
           top: posY,
           fill: shapeFill,
           stroke: shapeStroke,
-          strokeWidth: 2,
+          strokeWidth: shapeStrokeWidth,
           scaleX: 0.7,
           scaleY: 0.7,
+        }
+      );
+    } else if (type === "thought") {
+      shapeObj = new Path(
+        "M 160 80 C 180 80 195 95 195 115 C 205 125 205 140 195 150 C 190 165 170 170 155 165 C 145 175 120 175 105 165 C 90 175 70 165 65 150 C 50 140 50 125 60 115 C 60 95 80 80 100 80 C 115 65 145 65 160 80 Z",
+        {
+          left: posX,
+          top: posY,
+          fill: shapeFill,
+          stroke: shapeStroke,
+          strokeWidth: shapeStrokeWidth,
+          scaleX: 0.75,
+          scaleY: 0.75,
+        }
+      );
+    } else if (type === "moon") {
+      shapeObj = new Path(
+        "M 70 10 A 50 50 0 1 0 70 110 A 40 40 0 0 1 70 10 Z",
+        {
+          left: posX,
+          top: posY,
+          fill: shapeFill,
+          stroke: shapeStroke,
+          strokeWidth: shapeStrokeWidth,
+          scaleX: 0.8,
+          scaleY: 0.8,
+        }
+      );
+    } else if (type === "flower") {
+      shapeObj = new Path(
+        "M 50 20 C 55 5 75 5 75 25 C 95 25 95 45 80 50 C 95 55 95 75 75 75 C 75 95 55 95 50 80 C 45 95 25 95 25 75 C 5 75 5 55 20 50 C 5 45 5 25 25 25 C 25 5 45 5 50 20 Z",
+        {
+          left: posX,
+          top: posY,
+          fill: shapeFill,
+          stroke: shapeStroke,
+          strokeWidth: shapeStrokeWidth,
+          scaleX: 0.8,
+          scaleY: 0.8,
         }
       );
     } else if (type === "circle") {
@@ -244,7 +304,7 @@ export default function App() {
         radius: 50,
         fill: shapeFill,
         stroke: shapeStroke,
-        strokeWidth: 2,
+        strokeWidth: shapeStrokeWidth,
       });
     } else {
       shapeObj = new Rect({
@@ -256,13 +316,14 @@ export default function App() {
         ry: 8,
         fill: shapeFill,
         stroke: shapeStroke,
-        strokeWidth: 2,
+        strokeWidth: shapeStrokeWidth,
       });
     }
 
     c.add(shapeObj);
     c.setActiveObject(shapeObj);
     setMode("select");
+    setActiveTool("select");
     c.renderAll();
     recordCanvasState(c);
   };
@@ -277,7 +338,7 @@ export default function App() {
     const stickerText = new IText(sticker, {
       left: posX,
       top: posY,
-      fontSize: 54,
+      fontSize: 56,
       fontFamily: "Arial",
       padding: 6,
       borderColor: currentTheme.accentColor,
@@ -289,6 +350,7 @@ export default function App() {
     c.add(stickerText);
     c.setActiveObject(stickerText);
     setMode("select");
+    setActiveTool("select");
     c.renderAll();
     recordCanvasState(c);
   };
@@ -322,8 +384,8 @@ export default function App() {
     if (active) {
       active.clone().then((cloned: any) => {
         cloned.set({
-          left: (active.left || 100) + 20,
-          top: (active.top || 100) + 20,
+          left: (active.left || 100) + 25,
+          top: (active.top || 100) + 25,
         });
         c.add(cloned);
         c.setActiveObject(cloned);
@@ -488,6 +550,7 @@ export default function App() {
     c.add(text);
     c.setActiveObject(text);
     setMode("select");
+    setActiveTool("select");
     c.renderAll();
     recordCanvasState(c);
   };
@@ -770,6 +833,9 @@ export default function App() {
     );
   }
 
+  const currentToolCategory =
+    activeTool === "pencil" ? "pencil" : activeTool === "wand" ? "wand" : "brush";
+
   return (
     <div className="lofi-app-frame">
       <header className="lofi-topbar">
@@ -814,21 +880,18 @@ export default function App() {
 
           <div className="lofi-pill-switch">
             <button
-              className={`pill-option ${mode === "select" ? "active" : ""}`}
-              onClick={() => setMode("select")}
+              className={`pill-option ${mode !== "pan" ? "active" : ""}`}
+              onClick={() => {
+                setMode("draw");
+                setActiveTool("brush");
+              }}
             >
-              Select
-            </button>
-            <button
-              className={`pill-option ${mode === "draw" ? "active" : ""}`}
-              onClick={() => setMode("draw")}
-            >
-              Pen
+              Draw / Edit
             </button>
             <button
               className={`pill-option ${mode === "pan" ? "active" : ""}`}
               onClick={() => setMode("pan")}
-              title="Click and drag anywhere to move the whole book"
+              title="Click and drag anywhere on the canvas to move the book"
             >
               Pan (Hand)
             </button>
@@ -856,7 +919,7 @@ export default function App() {
 
           <div className="type-inline-tray">
             <button className="lofi-add-btn" onClick={addTextElement}>
-              + Add Words
+              + Add Story Text
             </button>
             {selectedObject?.type === "i-text" && (
               <>
@@ -900,26 +963,35 @@ export default function App() {
       </header>
 
       <div className="lofi-editor-body">
+        {/* DUAL RAIL + FLYOUT DRAWER */}
         <DrawingToolbox
-          mode={mode}
-          onSetMode={setMode}
-          brushType={brushType}
-          onSetBrushType={setBrushType}
+          activeTool={activeTool}
+          onSelectTool={handleSelectTool}
+          isDrawerOpen={isDrawerOpen}
+          onToggleDrawer={() => setIsDrawerOpen(!isDrawerOpen)}
+          brushSubtype={brushSubtype}
+          onSetBrushSubtype={setBrushSubtype}
+          wandSubtype={wandSubtype}
+          onSetWandSubtype={setWandSubtype}
           brushSize={brushSize}
           onSetBrushSize={setBrushSize}
           brushColor={brushColor}
           onSetBrushColor={setBrushColor}
+          brushOpacity={brushOpacity}
+          onSetBrushOpacity={setBrushOpacity}
           shapeFill={shapeFill}
           onSetShapeFill={setShapeFill}
           shapeStroke={shapeStroke}
           onSetShapeStroke={setShapeStroke}
+          shapeStrokeWidth={shapeStrokeWidth}
+          onSetShapeStrokeWidth={setShapeStrokeWidth}
           onAddShape={handleAddShape}
           onAddSticker={handleAddSticker}
+          hasSelection={!!selectedObject}
           onBringForward={handleBringForward}
           onSendBackward={handleSendBackward}
           onDuplicate={handleDuplicate}
           onDelete={deleteElement}
-          hasSelection={!!selectedObject}
         />
 
         <main
@@ -940,9 +1012,12 @@ export default function App() {
             <SpreadCanvas
               theme={currentTheme}
               mode={mode}
-              brushType={brushType}
+              toolType={currentToolCategory}
+              brushSubtype={brushSubtype}
+              wandSubtype={wandSubtype}
               brushColor={brushColor}
               brushSize={brushSize}
+              brushOpacity={brushOpacity}
               canvasData={activeSpread.canvasData}
               activeSide={activeSide}
               turnState={turnState}
