@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Canvas, IText, Path, Rect, Circle } from "fabric";
+import { Canvas, IText, Textbox, Path, Rect, Circle } from "fabric";
 import { SpreadCanvas } from "./components/SpreadCanvas";
 import {
   DrawingToolbox,
@@ -379,179 +379,234 @@ export default function App() {
     recordCanvasState(c);
   };
 
-  const handleApplyPageDivision = async (
+  const handleApplyPageDivision = (
     side: "left" | "right",
     type: PageDivisionType
   ) => {
     const c = activeCanvasRef.current;
     if (!c) return;
 
-    try {
-      await (document as any).fonts.load(`30px "${selectedFont}"`);
-    } catch (e) {}
+    // Strict page geometry:
+    // Page canvas is 1200x650.
+    // Left Page safe zone: 60px to 540px (width 480, center 300).
+    // Right Page safe zone: 660px to 1140px (width 480, center 900).
+    const pageLeft = side === "left" ? 60 : 660;
+    const pageWidth = 480;
+    const pageCenter = side === "left" ? 300 : 900;
 
-    const pageMinX = side === "left" ? 50 : 650;
-    const pageWidth = 500;
+    // Remove any previous template objects placed on this page
+    const existingTemplates = c.getObjects().filter((obj: any) => {
+      return obj.isTemplateElement === true && obj.pageSide === side;
+    });
+    existingTemplates.forEach((obj) => c.remove(obj));
+
+    const attachMeta = (obj: any) => {
+      obj.set({
+        layerId: activeLayerId,
+        isTemplateElement: true,
+        pageSide: side,
+        selectable: true,
+        evented: true,
+      });
+      return obj;
+    };
 
     if (type === "top_art_bottom_text") {
-      const textCard = new Rect({
-        left: pageMinX,
-        top: 400,
-        width: pageWidth,
-        height: 200,
-        rx: 12,
-        ry: 12,
-        fill: "rgba(255, 255, 255, 0.8)",
-        stroke: currentTheme.borderColor,
-        strokeWidth: 2,
-        layerId: activeLayerId,
-      });
+      // Upper illustration panel
+      const topPanel = attachMeta(
+        new Rect({
+          left: pageLeft,
+          top: 50,
+          width: pageWidth,
+          height: 320,
+          rx: 14,
+          ry: 14,
+          fill: "rgba(255, 255, 255, 0.45)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 2,
+        })
+      );
 
-      const storyText = new IText("The gentle sunlight climbed over the branches...\n\nBegin your story sentence here.", {
-        left: pageMinX + 25,
-        top: 430,
-        fontFamily: selectedFont,
-        fontSize: 26,
-        fill: currentTheme.inkColor,
-        width: pageWidth - 50,
-        lineHeight: 1.4,
-        layerId: activeLayerId,
-      });
+      // Lower writing/reading zone card
+      const bottomCard = attachMeta(
+        new Rect({
+          left: pageLeft,
+          top: 390,
+          width: pageWidth,
+          height: 210,
+          rx: 14,
+          ry: 14,
+          fill: "rgba(255, 255, 255, 0.88)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 1.5,
+        })
+      );
 
-      c.add(textCard);
-      c.add(storyText);
-      c.setActiveObject(storyText);
+      c.add(topPanel, bottomCard);
     } else if (type === "bottom_art_top_text") {
-      const textCard = new Rect({
-        left: pageMinX,
-        top: 50,
-        width: pageWidth,
-        height: 200,
-        rx: 12,
-        ry: 12,
-        fill: "rgba(255, 255, 255, 0.8)",
-        stroke: currentTheme.borderColor,
-        strokeWidth: 2,
-        layerId: activeLayerId,
-      });
+      // Upper writing zone card
+      const topCard = attachMeta(
+        new Rect({
+          left: pageLeft,
+          top: 50,
+          width: pageWidth,
+          height: 210,
+          rx: 14,
+          ry: 14,
+          fill: "rgba(255, 255, 255, 0.88)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 1.5,
+        })
+      );
 
-      const storyText = new IText("Chapter Two:\n\nDeep in the autumn grove, a soft melody echoed.", {
-        left: pageMinX + 25,
-        top: 80,
-        fontFamily: selectedFont,
-        fontSize: 26,
-        fill: currentTheme.inkColor,
-        width: pageWidth - 50,
-        lineHeight: 1.4,
-        layerId: activeLayerId,
-      });
+      // Lower illustration panel
+      const bottomPanel = attachMeta(
+        new Rect({
+          left: pageLeft,
+          top: 280,
+          width: pageWidth,
+          height: 320,
+          rx: 14,
+          ry: 14,
+          fill: "rgba(255, 255, 255, 0.45)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 2,
+        })
+      );
 
-      c.add(textCard);
-      c.add(storyText);
-      c.setActiveObject(storyText);
+      c.add(topCard, bottomPanel);
+    } else if (type === "classic_arch_story") {
+      // Outer page frame
+      const frameCard = attachMeta(
+        new Rect({
+          left: pageLeft,
+          top: 50,
+          width: pageWidth,
+          height: 550,
+          rx: 16,
+          ry: 16,
+          fill: "rgba(255, 255, 255, 0.5)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 2,
+        })
+      );
+
+      // Inset decorative dashed rule
+      const innerRule = attachMeta(
+        new Rect({
+          left: pageLeft + 16,
+          top: 66,
+          width: pageWidth - 32,
+          height: 518,
+          rx: 10,
+          ry: 10,
+          fill: "transparent",
+          stroke: currentTheme.accentColor,
+          strokeWidth: 1.5,
+          strokeDashArray: [6, 4],
+        })
+      );
+
+      c.add(frameCard, innerRule);
+    } else if (type === "storyboard_panels") {
+      // Top storyboard panel
+      const panelTop = attachMeta(
+        new Rect({
+          left: pageLeft,
+          top: 50,
+          width: pageWidth,
+          height: 260,
+          rx: 12,
+          ry: 12,
+          fill: "rgba(255, 255, 255, 0.55)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 2,
+        })
+      );
+
+      // Bottom storyboard panel
+      const panelBottom = attachMeta(
+        new Rect({
+          left: pageLeft,
+          top: 340,
+          width: pageWidth,
+          height: 260,
+          rx: 12,
+          ry: 12,
+          fill: "rgba(255, 255, 255, 0.55)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 2,
+        })
+      );
+
+      c.add(panelTop, panelBottom);
+    } else if (type === "spot_rhyme") {
+      // Centered circular character portrait
+      const spotCircle = attachMeta(
+        new Circle({
+          left: pageCenter - 110,
+          top: 60,
+          radius: 110,
+          fill: "rgba(255, 255, 255, 0.55)",
+          stroke: currentTheme.accentColor,
+          strokeWidth: 2.5,
+          strokeDashArray: [6, 6],
+        })
+      );
+
+      // Lower card below circle
+      const rhymePlaque = attachMeta(
+        new Rect({
+          left: pageLeft + 20,
+          top: 330,
+          width: pageWidth - 40,
+          height: 270,
+          rx: 14,
+          ry: 14,
+          fill: "rgba(255, 255, 255, 0.88)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 1.5,
+        })
+      );
+
+      c.add(spotCircle, rhymePlaque);
     } else if (type === "split_vertical") {
-      const textCard = new Rect({
-        left: pageMinX + pageWidth / 2 + 10,
-        top: 50,
-        width: pageWidth / 2 - 20,
-        height: 550,
-        rx: 12,
-        ry: 12,
-        fill: "rgba(255, 255, 255, 0.8)",
-        stroke: currentTheme.borderColor,
-        strokeWidth: 2,
-        layerId: activeLayerId,
-      });
+      // Left half column
+      const colLeft = attachMeta(
+        new Rect({
+          left: pageLeft,
+          top: 50,
+          width: 230,
+          height: 550,
+          rx: 12,
+          ry: 12,
+          fill: "rgba(255, 255, 255, 0.45)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 2,
+        })
+      );
 
-      const storyText = new IText("Once there lived a curious friend.\n\nDraw your character in the left column!", {
-        left: pageMinX + pageWidth / 2 + 25,
-        top: 90,
-        fontFamily: selectedFont,
-        fontSize: 24,
-        fill: currentTheme.inkColor,
-        width: pageWidth / 2 - 50,
-        lineHeight: 1.4,
-        layerId: activeLayerId,
-      });
+      // Right half column
+      const colRight = attachMeta(
+        new Rect({
+          left: pageLeft + 250,
+          top: 50,
+          width: 230,
+          height: 550,
+          rx: 12,
+          ry: 12,
+          fill: "rgba(255, 255, 255, 0.85)",
+          stroke: currentTheme.borderColor,
+          strokeWidth: 1.5,
+        })
+      );
 
-      c.add(textCard);
-      c.add(storyText);
-      c.setActiveObject(storyText);
-    } else if (type === "floating_card") {
-      const vignette = new Rect({
-        left: pageMinX + 40,
-        top: 150,
-        width: pageWidth - 80,
-        height: 350,
-        rx: 16,
-        ry: 16,
-        fill: "rgba(255, 255, 255, 0.88)",
-        stroke: currentTheme.accentColor,
-        strokeWidth: 2,
-        layerId: activeLayerId,
-      });
-
-      const storyText = new IText("Whispers of the night sky:\n\nA bedtime vignette resting smoothly over your full illustration.", {
-        left: pageMinX + 65,
-        top: 190,
-        fontFamily: selectedFont,
-        fontSize: 26,
-        fill: currentTheme.inkColor,
-        width: pageWidth - 130,
-        lineHeight: 1.4,
-        layerId: activeLayerId,
-      });
-
-      c.add(vignette);
-      c.add(storyText);
-      c.setActiveObject(storyText);
-    } else if (type === "just_text") {
-      const textCard = new Rect({
-        left: pageMinX,
-        top: 50,
-        width: pageWidth,
-        height: 550,
-        rx: 14,
-        ry: 14,
-        fill: "rgba(255, 255, 255, 0.8)",
-        stroke: currentTheme.borderColor,
-        strokeWidth: 2,
-        layerId: activeLayerId,
-      });
-
-      const storyText = new IText("Once upon a gentle morning, the forest breathed a soft mist.\n\nEvery animal gathered near the old stone well to hear tales of the starry horizon.", {
-        left: pageMinX + 35,
-        top: 100,
-        fontFamily: selectedFont,
-        fontSize: 28,
-        fill: currentTheme.inkColor,
-        width: pageWidth - 70,
-        lineHeight: 1.5,
-        layerId: activeLayerId,
-      });
-
-      c.add(textCard);
-      c.add(storyText);
-      c.setActiveObject(storyText);
-    } else if (type === "just_drawing") {
-      const guideFrame = new Rect({
-        left: pageMinX,
-        top: 50,
-        width: pageWidth,
-        height: 550,
-        rx: 10,
-        ry: 10,
-        fill: "transparent",
-        stroke: currentTheme.borderColor,
-        strokeWidth: 1.5,
-        strokeDashArray: [8, 6],
-        layerId: activeLayerId,
-      });
-
-      c.add(guideFrame);
-      c.setActiveObject(guideFrame);
+      c.add(colLeft, colRight);
+    } else if (type === "spotless_canvas") {
+      // Cleans all template frames on this page
     }
 
+    c.discardActiveObject();
     setMode("select");
     setActiveTool("select");
     syncObjectsLayerZOrder(c, currentLayers);
@@ -777,6 +832,7 @@ export default function App() {
     setProjects((prev) => [...prev, project]);
     setActiveProjectId(project.id);
     setActivePageNum(1);
+    setActiveSide("left");
     setBrushColor(theme.inkColor);
     setSelectedFont(theme.recommendedFont);
     setZoomLevel(100);
@@ -842,7 +898,7 @@ export default function App() {
         if (targetSpread.canvasData) {
           c.loadFromJSON(targetSpread.canvasData).then(() => {
             c.backgroundColor = "transparent";
-            c.renderAll();
+            c.requestRenderAll();
             isHistoryLockedRef.current = false;
             undoStackRef.current = [c.toJSON()];
             redoStackRef.current = [];
@@ -852,7 +908,7 @@ export default function App() {
         } else {
           c.clear();
           c.backgroundColor = "transparent";
-          c.renderAll();
+          c.requestRenderAll();
           isHistoryLockedRef.current = false;
           undoStackRef.current = [c.toJSON()];
           redoStackRef.current = [];
@@ -871,11 +927,12 @@ export default function App() {
     if (!activeProject) return;
     saveCurrentSpread();
     const last = activeProject.spreads[activeProject.spreads.length - 1];
-    const newLeft = last.rightPageNum + 1;
+    const newLeft = last ? last.rightPageNum + 1 : 1;
+    const newRight = newLeft + 1;
     const newSpread = {
       id: `s-${Date.now()}`,
       leftPageNum: newLeft,
-      rightPageNum: newLeft + 1,
+      rightPageNum: newRight,
       canvasData: null,
       layers: DEFAULT_LAYERS,
       activeLayerId: "layer-1",
@@ -900,7 +957,7 @@ export default function App() {
     } catch (e) {}
 
     const posX = activeSide === "left" ? 140 : 740;
-    const text = new IText("Write your lovely story here...", {
+    const text = new Textbox("Write your lovely story here...", {
       left: posX,
       top: 200,
       fontFamily: selectedFont,
@@ -914,6 +971,7 @@ export default function App() {
       cornerSize: 8,
       transparentCorners: false,
       layerId: activeLayerId,
+      splitByGrapheme: false,
     });
 
     c.add(text);
@@ -927,7 +985,7 @@ export default function App() {
   const updateTextFont = async (font: string) => {
     setSelectedFont(font);
     const c = activeCanvasRef.current;
-    if (!c || !selectedObject || selectedObject.type !== "i-text") return;
+    if (!c || !selectedObject || (selectedObject.type !== "i-text" && selectedObject.type !== "textbox")) return;
 
     const targetSize = selectedObject.fontSize || fontSize;
     try {
@@ -945,7 +1003,7 @@ export default function App() {
   const updateTextFontSize = (size: number) => {
     setFontSize(size);
     const c = activeCanvasRef.current;
-    if (!c || !selectedObject || selectedObject.type !== "i-text") return;
+    if (!c || !selectedObject || (selectedObject.type !== "i-text" && selectedObject.type !== "textbox")) return;
 
     selectedObject.set("fontSize", size);
     if (typeof (selectedObject as any).initDimensions === "function") {
@@ -985,9 +1043,7 @@ export default function App() {
   };
 
   const handleMouseUpOnStage = () => {
-    if (isPanning) {
-      setIsPanning(false);
-    }
+    setIsPanning(false);
   };
 
   const handleWheelOnStage = (e: React.WheelEvent) => {
@@ -1071,6 +1127,7 @@ export default function App() {
                     onClick={() => {
                       setActiveProjectId(proj.id);
                       setActivePageNum(1);
+                      setActiveSide("left");
                       resetView();
                     }}
                   >
@@ -1297,7 +1354,7 @@ export default function App() {
             <button className="lofi-add-btn" onClick={addTextElement}>
               + Add Story Text
             </button>
-            {selectedObject?.type === "i-text" && (
+            {selectedObject && (selectedObject.type === "i-text" || selectedObject.type === "textbox") && (
               <>
                 <select
                   className="lofi-select"
@@ -1339,6 +1396,7 @@ export default function App() {
       </header>
 
       <div className="lofi-editor-body">
+        {/* LEFT DUAL RAIL */}
         <DrawingToolbox
           activeTool={activeTool}
           onSelectTool={handleSelectTool}
@@ -1374,6 +1432,7 @@ export default function App() {
           onDelete={() => deleteElement()}
         />
 
+        {/* CANVAS VIEWPORT */}
         <main
           className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
             isPanning ? "grabbing" : ""
@@ -1416,6 +1475,7 @@ export default function App() {
           </div>
         </main>
 
+        {/* RIGHT DEDICATED LAYERS & LAYOUT PANEL */}
         <LayersPanel
           isOpen={isLayersOpen}
           onToggle={() => setIsLayersOpen(!isLayersOpen)}
@@ -1430,8 +1490,8 @@ export default function App() {
           onDeleteLayer={handleDeleteLayer}
           activeSide={activeSide}
           onSelectPageSide={setActiveSide}
-          leftPageNum={activeSpread ? activeSpread.leftPageNum : 1}
-          rightPageNum={activeSpread ? activeSpread.rightPageNum : 2}
+          leftPageNum={activeSpread.leftPageNum}
+          rightPageNum={activeSpread.rightPageNum}
           onApplyPageDivision={handleApplyPageDivision}
         />
       </div>
@@ -1446,7 +1506,7 @@ export default function App() {
             ← Prev Spread
           </button>
           <span className="page-tracker-text">
-            Viewing Pages {activeSpread ? `${activeSpread.leftPageNum} & ${activeSpread.rightPageNum}` : "1 & 2"} of {totalPages}
+            Viewing Pages {activeSpread.leftPageNum} & {activeSpread.rightPageNum} of {totalPages}
           </span>
           <button
             className="turn-btn right"
@@ -1459,7 +1519,7 @@ export default function App() {
 
         <div className="tray-tabs-ribbon">
           {activeProject?.spreads.map((spread) => {
-            const isSelected = activeSpread?.id === spread.id;
+            const isSelected = activeSpread.id === spread.id;
             return (
               <button
                 key={spread.id}

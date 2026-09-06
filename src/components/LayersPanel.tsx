@@ -4,10 +4,11 @@ import { CanvasLayer } from "../types";
 export type PageDivisionType =
   | "top_art_bottom_text"
   | "bottom_art_top_text"
+  | "classic_arch_story"
+  | "storyboard_panels"
+  | "spot_rhyme"
   | "split_vertical"
-  | "just_drawing"
-  | "just_text"
-  | "floating_card";
+  | "spotless_canvas";
 
 interface LayersPanelProps {
   isOpen: boolean;
@@ -46,7 +47,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   rightPageNum,
   onApplyPageDivision,
 }) => {
-  const [panelTab, setPanelTab] = useState<"layers" | "layout">("layers");
+  const [panelTab, setPanelTab] = useState<"layout" | "layers">("layout");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState<string>("");
 
@@ -140,7 +141,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           <polyline points="2 17 12 22 22 17" />
           <polyline points="2 12 12 17 22 12" />
         </svg>
-        <span className="handle-text">Layers & Layout</span>
+        <span className="handle-text">Layout & Layers</span>
         <span className="layers-count-pill">{layers.length}</span>
       </button>
 
@@ -149,16 +150,16 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           <div className="layers-header">
             <div className="layers-panel-tab-switcher">
               <button
-                className={`panel-tab-btn ${panelTab === "layers" ? "active" : ""}`}
-                onClick={() => setPanelTab("layers")}
-              >
-                Layers
-              </button>
-              <button
                 className={`panel-tab-btn ${panelTab === "layout" ? "active" : ""}`}
                 onClick={() => setPanelTab("layout")}
               >
-                Page Split & Zones
+                Page Templates
+              </button>
+              <button
+                className={`panel-tab-btn ${panelTab === "layers" ? "active" : ""}`}
+                onClick={() => setPanelTab("layers")}
+              >
+                Layers ({layers.length})
               </button>
             </div>
             <button className="layers-close-btn" onClick={onToggle}>
@@ -166,7 +167,129 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
             </button>
           </div>
 
-          {panelTab === "layers" ? (
+          {panelTab === "layout" ? (
+            <div className="layout-divisions-scroll">
+              <div className="page-target-selector">
+                <span className="section-label">Apply Template To</span>
+                <div className="page-side-toggle-group">
+                  <button
+                    className={`side-btn ${activeSide === "left" ? "active" : ""}`}
+                    onClick={() => onSelectPageSide("left")}
+                  >
+                    Page {leftPageNum} (Left)
+                  </button>
+                  <button
+                    className={`side-btn ${activeSide === "right" ? "active" : ""}`}
+                    onClick={() => onSelectPageSide("right")}
+                  >
+                    Page {rightPageNum} (Right)
+                  </button>
+                </div>
+              </div>
+
+              <div className="division-category-block">
+                <span className="section-label">Storybook Page Layouts</span>
+                <div className="division-cards-list">
+                  <button
+                    className="division-card"
+                    onClick={() => onApplyPageDivision(activeSide, "top_art_bottom_text")}
+                  >
+                    <div className="div-thumb top-art">
+                      <div className="thumb-art-zone">Top Scene</div>
+                      <div className="thumb-text-zone">Bottom Zone</div>
+                    </div>
+                    <div className="div-card-meta">
+                      <span className="title">Top Scene / Bottom Zone</span>
+                      <span className="desc">Upper landscape illustration with reading/writing card below</span>
+                    </div>
+                  </button>
+
+                  <button
+                    className="division-card"
+                    onClick={() => onApplyPageDivision(activeSide, "bottom_art_top_text")}
+                  >
+                    <div className="div-thumb bottom-art">
+                      <div className="thumb-text-zone">Top Zone</div>
+                      <div className="thumb-art-zone">Bottom Scene</div>
+                    </div>
+                    <div className="div-card-meta">
+                      <span className="title">Top Zone / Bottom Scene</span>
+                      <span className="desc">Upper story block with lower ground/landscape illustration</span>
+                    </div>
+                  </button>
+
+                  <button
+                    className="division-card"
+                    onClick={() => onApplyPageDivision(activeSide, "classic_arch_story")}
+                  >
+                    <div className="div-thumb classic-arch">
+                      <div className="arch-top-window" />
+                      <div className="arch-story-card" />
+                    </div>
+                    <div className="div-card-meta">
+                      <span className="title">Classic Framed Page</span>
+                      <span className="desc">Elegant framed page with inset dashed contour</span>
+                    </div>
+                  </button>
+
+                  <button
+                    className="division-card"
+                    onClick={() => onApplyPageDivision(activeSide, "storyboard_panels")}
+                  >
+                    <div className="div-thumb story-panels">
+                      <div className="panel-box-top" />
+                      <div className="panel-box-bottom" />
+                    </div>
+                    <div className="div-card-meta">
+                      <span className="title">Storyboard (2 Panels)</span>
+                      <span className="desc">Two stacked picture frames for sequential scene drawing</span>
+                    </div>
+                  </button>
+
+                  <button
+                    className="division-card"
+                    onClick={() => onApplyPageDivision(activeSide, "spot_rhyme")}
+                  >
+                    <div className="div-thumb spot-rhyme">
+                      <div className="spot-circle" />
+                      <div className="rhyme-lines" />
+                    </div>
+                    <div className="div-card-meta">
+                      <span className="title">Character Spot & Card</span>
+                      <span className="desc">Centered circular portrait vignette over a wide card</span>
+                    </div>
+                  </button>
+
+                  <button
+                    className="division-card"
+                    onClick={() => onApplyPageDivision(activeSide, "split_vertical")}
+                  >
+                    <div className="div-thumb split-side">
+                      <div className="thumb-art-half" />
+                      <div className="thumb-text-half" />
+                    </div>
+                    <div className="div-card-meta">
+                      <span className="title">Vertical Columns (50 / 50)</span>
+                      <span className="desc">Two side-by-side vertical columns centered on page</span>
+                    </div>
+                  </button>
+
+                  <button
+                    className="division-card"
+                    onClick={() => onApplyPageDivision(activeSide, "spotless_canvas")}
+                  >
+                    <div className="div-thumb blank-canvas">
+                      <div className="canvas-grid-indicator" />
+                    </div>
+                    <div className="div-card-meta">
+                      <span className="title">Spotless Open Drawing</span>
+                      <span className="desc">Clear all template frames on this page for freehand art</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
             <>
               <div className="layers-toolbar-actions">
                 <button className="add-layer-btn" onClick={onAddLayer}>
@@ -255,7 +378,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           <span className="layer-meta">
                             {isActive
                               ? "Active Drawing Layer"
-                              : `Level ${layers.length - index}`}
+                              : `Stack Level ${layers.length - index}`}
                           </span>
                         </div>
 
@@ -342,7 +465,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             onClick={() => onDeleteLayer(layer.id)}
                             title={
                               layers.length <= 1
-                                ? "Cannot delete the only layer"
+                                ? "Cannot delete only layer"
                                 : "Delete layer"
                             }
                           >
@@ -377,117 +500,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 )}
               </div>
             </>
-          ) : (
-            <div className="layout-divisions-scroll">
-              <div className="page-target-selector">
-                <span className="section-label">Target Page To Format</span>
-                <div className="page-side-toggle-group">
-                  <button
-                    className={`side-btn ${activeSide === "left" ? "active" : ""}`}
-                    onClick={() => onSelectPageSide("left")}
-                  >
-                    Page {leftPageNum} (Left Page)
-                  </button>
-                  <button
-                    className={`side-btn ${activeSide === "right" ? "active" : ""}`}
-                    onClick={() => onSelectPageSide("right")}
-                  >
-                    Page {rightPageNum} (Right Page)
-                  </button>
-                </div>
-              </div>
-
-              <div className="division-category-block">
-                <span className="section-label">Text & Drawing Divisions</span>
-                <div className="division-cards-list">
-                  <button
-                    className="division-card"
-                    onClick={() => onApplyPageDivision(activeSide, "top_art_bottom_text")}
-                  >
-                    <div className="div-thumb top-art">
-                      <div className="thumb-art-zone">Illustration Area</div>
-                      <div className="thumb-text-zone">Story Lines Area</div>
-                    </div>
-                    <div className="div-card-meta">
-                      <span className="title">Top Art / Bottom Text</span>
-                      <span className="desc">Scenery illustration on top with framed story lines below</span>
-                    </div>
-                  </button>
-
-                  <button
-                    className="division-card"
-                    onClick={() => onApplyPageDivision(activeSide, "bottom_art_top_text")}
-                  >
-                    <div className="div-thumb bottom-art">
-                      <div className="thumb-text-zone">Story Lines Area</div>
-                      <div className="thumb-art-zone">Illustration Area</div>
-                    </div>
-                    <div className="div-card-meta">
-                      <span className="title">Top Text / Bottom Art</span>
-                      <span className="desc">Narrative story verse on top with landscape ground below</span>
-                    </div>
-                  </button>
-
-                  <button
-                    className="division-card"
-                    onClick={() => onApplyPageDivision(activeSide, "split_vertical")}
-                  >
-                    <div className="div-thumb split-side">
-                      <div className="thumb-art-half">Art Column</div>
-                      <div className="thumb-text-half">Text Column</div>
-                    </div>
-                    <div className="div-card-meta">
-                      <span className="title">Vertical Half & Half</span>
-                      <span className="desc">Character drawing on one side, verse block on the other</span>
-                    </div>
-                  </button>
-
-                  <button
-                    className="division-card"
-                    onClick={() => onApplyPageDivision(activeSide, "floating_card")}
-                  >
-                    <div className="div-thumb floating-thumb">
-                      <div className="floating-inner-card">Story Vignette</div>
-                    </div>
-                    <div className="div-card-meta">
-                      <span className="title">Full Art + Floating Card</span>
-                      <span className="desc">Full-bleed artwork page with frosted narrative card on top</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="division-category-block">
-                <span className="section-label">Single Purpose Formats</span>
-                <div className="division-cards-list">
-                  <button
-                    className="division-card"
-                    onClick={() => onApplyPageDivision(activeSide, "just_drawing")}
-                  >
-                    <div className="div-thumb pure-art">
-                      <div className="thumb-pure-art">100% Full Canvas Illustration</div>
-                    </div>
-                    <div className="div-card-meta">
-                      <span className="title">Just Drawing</span>
-                      <span className="desc">Dedicated illustration page with no text constraints</span>
-                    </div>
-                  </button>
-
-                  <button
-                    className="division-card"
-                    onClick={() => onApplyPageDivision(activeSide, "just_text")}
-                  >
-                    <div className="div-thumb pure-text">
-                      <div className="thumb-pure-text">Classic Storybook Typography</div>
-                    </div>
-                    <div className="div-card-meta">
-                      <span className="title">Just Text</span>
-                      <span className="desc">Classical full-page fairy tale chapter layout</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
           )}
         </div>
       )}
