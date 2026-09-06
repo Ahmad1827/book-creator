@@ -15,6 +15,7 @@ interface SpreadCanvasProps {
   brushSubtype: BrushSubtype;
   wandMode: WandMode;
   wandColor: string;
+  wandContinuous: boolean;
   brushColor: string;
   brushSize: number;
   brushOpacity: number;
@@ -35,6 +36,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   brushSubtype,
   wandMode,
   wandColor,
+  wandContinuous,
   brushColor,
   brushSize,
   brushOpacity,
@@ -57,6 +59,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   const toolTypeRef = useRef(toolType);
   const wandModeRef = useRef(wandMode);
   const wandColorRef = useRef(wandColor);
+  const wandContinuousRef = useRef(wandContinuous);
 
   useEffect(() => {
     activeLayerIdRef.current = activeLayerId;
@@ -66,6 +69,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     toolTypeRef.current = toolType;
     wandModeRef.current = wandMode;
     wandColorRef.current = wandColor;
+    wandContinuousRef.current = wandContinuous;
   });
 
   useEffect(() => {
@@ -109,6 +113,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       onSaveStateRef.current(canvas);
     });
 
+    // Magic Wand Click: Continuous vs. Non-Continuous
     canvas.on("mouse:down", (e) => {
       if (toolTypeRef.current !== "wand") return;
 
@@ -116,37 +121,65 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       if (!target) return;
 
       const newColor = wandColorRef.current;
+      const isContinuous = wandContinuousRef.current;
 
       if (wandModeRef.current === "recolor") {
-        if (target.type === "path" && !target.stickerId) {
-          target.set("stroke", newColor);
-        } else if (target.type === "i-text") {
-          target.set("fill", newColor);
-        } else {
-          target.set("fill", newColor);
-          if (target.stroke && target.stroke !== "transparent") {
+        if (isContinuous) {
+          // CONTINUOUS: Only recolor the single clicked stroke/element
+          if (target.type === "path" && !target.stickerId) {
             target.set("stroke", newColor);
+          } else if (target.type === "i-text") {
+            target.set("fill", newColor);
+          } else {
+            target.set("fill", newColor);
+            if (target.stroke && target.stroke !== "transparent") {
+              target.set("stroke", newColor);
+            }
           }
+        } else {
+          // NON-CONTINUOUS: Recolor all matching colors across the layer
+          const targetColor = (
+            target.stroke && target.stroke !== "transparent"
+              ? target.stroke
+              : target.fill
+          ) || "";
+          const normTarget = targetColor.toString().toLowerCase().trim();
+
+          canvas.getObjects().forEach((obj: any) => {
+            if (obj.layerId && obj.layerId !== activeLayerIdRef.current) return;
+            const s = (obj.stroke || "").toString().toLowerCase().trim();
+            const f = (obj.fill || "").toString().toLowerCase().trim();
+            if (s === normTarget) obj.set("stroke", newColor);
+            if (f === normTarget) obj.set("fill", newColor);
+          });
         }
         canvas.requestRenderAll();
         onSaveStateRef.current(canvas);
       } else if (wandModeRef.current === "select_similar") {
-        const targetColor =
-          (target.stroke && target.stroke !== "transparent" ? target.stroke : target.fill) || "";
-        const normTarget = targetColor.toString().toLowerCase().trim();
-
-        const matching = canvas.getObjects().filter((obj: any) => {
-          if (obj.layerId && obj.layerId !== activeLayerIdRef.current) return false;
-          const s = (obj.stroke || "").toString().toLowerCase().trim();
-          const f = (obj.fill || "").toString().toLowerCase().trim();
-          return s === normTarget || f === normTarget;
-        });
-
-        if (matching.length > 0) {
-          canvas.discardActiveObject();
-          const sel = new ActiveSelection(matching, { canvas });
-          canvas.setActiveObject(sel);
+        if (isContinuous) {
+          canvas.setActiveObject(target);
           canvas.requestRenderAll();
+        } else {
+          const targetColor = (
+            target.stroke && target.stroke !== "transparent"
+              ? target.stroke
+              : target.fill
+          ) || "";
+          const normTarget = targetColor.toString().toLowerCase().trim();
+
+          const matching = canvas.getObjects().filter((obj: any) => {
+            if (obj.layerId && obj.layerId !== activeLayerIdRef.current) return false;
+            const s = (obj.stroke || "").toString().toLowerCase().trim();
+            const f = (obj.fill || "").toString().toLowerCase().trim();
+            return s === normTarget || f === normTarget;
+          });
+
+          if (matching.length > 0) {
+            canvas.discardActiveObject();
+            const sel = new ActiveSelection(matching, { canvas });
+            canvas.setActiveObject(sel);
+            canvas.requestRenderAll();
+          }
         }
       }
     });

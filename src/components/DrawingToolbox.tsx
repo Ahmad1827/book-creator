@@ -70,6 +70,8 @@ interface DrawingToolboxProps {
   onSetWandMode: (mode: WandMode) => void;
   wandColor: string;
   onSetWandColor: (color: string) => void;
+  wandContinuous: boolean;
+  onSetWandContinuous: (continuous: boolean) => void;
   onReplaceAllColorOnLayer: () => void;
   brushSize: number;
   onSetBrushSize: (size: number) => void;
@@ -103,6 +105,8 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
   onSetWandMode,
   wandColor,
   onSetWandColor,
+  wandContinuous,
+  onSetWandContinuous,
   onReplaceAllColorOnLayer,
   brushSize,
   onSetBrushSize,
@@ -138,6 +142,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
   return (
     <aside className="lofi-dual-toolbox">
       <div className="toolbox-icon-rail">
+        {/* SELECT */}
         <button
           className={`rail-icon-btn ${activeTool === "select" ? "active" : ""}`}
           onClick={() => handleToolClick("select")}
@@ -146,6 +151,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           <svg viewBox="0 0 24 24" className="rail-svg"><path d="M4 2l6 17 3-5 5 7 2-1-5-7 7-2z" fill="currentColor" /></svg>
         </button>
 
+        {/* PENCIL */}
         <button
           className={`rail-icon-btn ${activeTool === "pencil" ? "active" : ""}`}
           onClick={() => handleToolClick("pencil")}
@@ -154,32 +160,36 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           <svg viewBox="0 0 24 24" className="rail-svg"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor" /></svg>
         </button>
 
+        {/* BRUSH */}
         <button
           className={`rail-icon-btn ${activeTool === "brush" ? "active" : ""}`}
           onClick={() => handleToolClick("brush")}
-          data-tooltip="Artist Brushes & Eraser (B)"
+          data-tooltip="Brushes & Eraser (B)"
         >
           <svg viewBox="0 0 24 24" className="rail-svg"><path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.71a1 1 0 0 0-1.42 0l-9.05 9.06 2.83 2.83 9.06-9.06a1 1 0 0 0 0-1.41l-1.42-1.42z" fill="currentColor" /></svg>
         </button>
 
+        {/* MAGIC WAND */}
         <button
           className={`rail-icon-btn ${activeTool === "wand" ? "active" : ""}`}
           onClick={() => handleToolClick("wand")}
-          data-tooltip="Magic Wand (Color Select & Recolor)"
+          data-tooltip="Magic Wand (Recolor & Select)"
         >
           <svg viewBox="0 0 24 24" className="rail-svg">
             <path d="M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29c-.39-.39-1.02-.39-1.41 0L1.29 18.96c-.39.39-.39 1.02 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05c.39-.39.39-1.02 0-1.41l-2.33-2.35z" fill="currentColor" />
           </svg>
         </button>
 
+        {/* PALETTE */}
         <button
           className={`rail-icon-btn ${activeTool === "palette" ? "active" : ""}`}
           onClick={() => handleToolClick("palette")}
-          data-tooltip="Master Color Room"
+          data-tooltip="Color Studio"
         >
           <svg viewBox="0 0 24 24" className="rail-svg"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19A1 1 0 0 0 5.2 20.5c1.88 0 3.32-.97 4.14-2.07.82.37 1.73.57 2.66.57 4.97 0 9-4.03 9-9s-4.03-9-9-9zm-5.5 8c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8s1.5.67 1.5 1.5S7.33 11 6.5 11zm3-4c-.83 0-1.5-.67-1.5-1.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="currentColor" /></svg>
         </button>
 
+        {/* SHAPES */}
         <button
           className={`rail-icon-btn ${activeTool === "shapes" ? "active" : ""}`}
           onClick={() => handleToolClick("shapes")}
@@ -188,6 +198,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           <svg viewBox="0 0 24 24" className="rail-svg"><path d="M12 2l4.5 9h-9zM3 13.5h7v7H3zm11 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" fill="currentColor" /></svg>
         </button>
 
+        {/* STICKERS */}
         <button
           className={`rail-icon-btn ${activeTool === "stickers" ? "active" : ""}`}
           onClick={() => handleToolClick("stickers")}
@@ -196,6 +207,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           <svg viewBox="0 0 24 24" className="rail-svg"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" fill="currentColor" /></svg>
         </button>
 
+        {/* ARRANGE */}
         <button
           className={`rail-icon-btn ${activeTool === "arrange" ? "active" : ""}`}
           onClick={() => handleToolClick("arrange")}
@@ -232,6 +244,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
           </div>
 
           <div className="drawer-body">
+            {/* PENCIL */}
             {activeTool === "pencil" && (
               <div className="drawer-section">
                 <span className="drawer-label">Graphite Grade</span>
@@ -273,29 +286,90 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
+            {/* BRUSHES & ERASER (100% SVG ICONS) */}
             {activeTool === "brush" && (
               <div className="drawer-section">
                 <span className="drawer-label">Brush & Eraser Mediums</span>
                 <div className="brush-cards-grid">
-                  {[
-                    { id: "ink", icon: "✒️", name: "Fountain Pen", desc: "Crisp Story Linework" },
-                    { id: "watercolor", icon: "🖌️", name: "Watercolor Wash", desc: "Soft Transparent Fill" },
-                    { id: "marker", icon: "🖍️", name: "Felt Marker", desc: "Rich Vivid Ink" },
-                    { id: "crayon", icon: "✏️", name: "Wax Crayon", desc: "Pencil Texture" },
-                    { id: "eraser", icon: "🧹", name: "Stroke Eraser", desc: "Erases Back to Paper" },
-                  ].map((b) => (
-                    <button
-                      key={b.id}
-                      className={`brush-type-btn ${brushSubtype === b.id ? "active" : ""}`}
-                      onClick={() => onSetBrushSubtype(b.id as BrushSubtype)}
-                    >
-                      <span className="brush-icon">{b.icon}</span>
-                      <div className="brush-info">
-                        <span className="name">{b.name}</span>
-                        <span className="desc">{b.desc}</span>
-                      </div>
-                    </button>
-                  ))}
+                  {/* Ink Pen */}
+                  <button
+                    className={`brush-type-btn ${brushSubtype === "ink" ? "active" : ""}`}
+                    onClick={() => onSetBrushSubtype("ink")}
+                  >
+                    <span className="brush-icon-svg">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M12 2l-7 13 4 2 8-11zm-5.5 14.5L4 21l4.5-2.5z" />
+                      </svg>
+                    </span>
+                    <div className="brush-info">
+                      <span className="name">Fountain Pen</span>
+                      <span className="desc">Crisp Story Linework</span>
+                    </div>
+                  </button>
+
+                  {/* Watercolor Wash */}
+                  <button
+                    className={`brush-type-btn ${brushSubtype === "watercolor" ? "active" : ""}`}
+                    onClick={() => onSetBrushSubtype("watercolor")}
+                  >
+                    <span className="brush-icon-svg">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19c.8 1.1 2.2 1.5 3.5 1.5h8.3c1.3 0 2.7-.4 3.5-1.5l-.62-.39C20.26 17.07 21 15.12 21 12c0-4.97-4.03-9-9-9z" />
+                      </svg>
+                    </span>
+                    <div className="brush-info">
+                      <span className="name">Watercolor Wash</span>
+                      <span className="desc">Soft Transparent Fill</span>
+                    </div>
+                  </button>
+
+                  {/* Felt Marker */}
+                  <button
+                    className={`brush-type-btn ${brushSubtype === "marker" ? "active" : ""}`}
+                    onClick={() => onSetBrushSubtype("marker")}
+                  >
+                    <span className="brush-icon-svg">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M17.5 2.5l4 4L7 21H3v-4z" />
+                      </svg>
+                    </span>
+                    <div className="brush-info">
+                      <span className="name">Felt Marker</span>
+                      <span className="desc">Rich Vivid Ink</span>
+                    </div>
+                  </button>
+
+                  {/* Wax Crayon */}
+                  <button
+                    className={`brush-type-btn ${brushSubtype === "crayon" ? "active" : ""}`}
+                    onClick={() => onSetBrushSubtype("crayon")}
+                  >
+                    <span className="brush-icon-svg">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M19 3l2 2-10 10-3-3zm-9 11l-3 3-4 4 1-5 3-3z" />
+                      </svg>
+                    </span>
+                    <div className="brush-info">
+                      <span className="name">Wax Crayon</span>
+                      <span className="desc">Granular Texture</span>
+                    </div>
+                  </button>
+
+                  {/* Stroke Eraser */}
+                  <button
+                    className={`brush-type-btn ${brushSubtype === "eraser" ? "active" : ""}`}
+                    onClick={() => onSetBrushSubtype("eraser")}
+                  >
+                    <span className="brush-icon-svg">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M16.24 3.56l4.95 4.94a1.5 1.5 0 0 1 0 2.12L11.7 20.11a1.5 1.5 0 0 1-1.06.44H4a1 1 0 0 1-1-1v-6.64c0-.4.16-.78.44-1.06l9.49-9.49a1.5 1.5 0 0 1 2.31.2z" />
+                      </svg>
+                    </span>
+                    <div className="brush-info">
+                      <span className="name">Stroke Eraser</span>
+                      <span className="desc">Cleans Ink Back to Paper</span>
+                    </div>
+                  </button>
                 </div>
 
                 <div className="drawer-slider-row">
@@ -333,6 +407,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
+            {/* MAGIC WAND WITH CONTINUOUS TOGGLE */}
             {activeTool === "wand" && (
               <div className="drawer-section">
                 <span className="drawer-label">Magic Wand Mode</span>
@@ -341,19 +416,42 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
                     className={`wand-mode-btn ${wandMode === "recolor" ? "active" : ""}`}
                     onClick={() => onSetWandMode("recolor")}
                   >
-                    <span className="icon">🪄</span>
-                    <span className="title">Click to Recolor</span>
-                    <span className="sub">Click stroke/shape to paint it</span>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                      <path d="M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM16.7 11.05l-2.33-2.35L1.29 18.96l2.34 2.34z" />
+                    </svg>
+                    <span className="title">Recolor</span>
+                    <span className="sub">Paints clicked strokes</span>
                   </button>
 
                   <button
                     className={`wand-mode-btn ${wandMode === "select_similar" ? "active" : ""}`}
                     onClick={() => onSetWandMode("select_similar")}
                   >
-                    <span className="icon">🎯</span>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="22" y1="12" x2="18" y2="12" />
+                      <line x1="6" y1="12" x2="2" y2="12" />
+                      <line x1="12" y1="6" x2="12" y2="2" />
+                      <line x1="12" y1="22" x2="12" y2="18" />
+                    </svg>
                     <span className="title">Select by Color</span>
-                    <span className="sub">Selects all matching colors</span>
+                    <span className="sub">Selects matching colors</span>
                   </button>
+                </div>
+
+                {/* CONTINUOUS SWITCH */}
+                <div className="continuous-switch-row" onClick={() => onSetWandContinuous(!wandContinuous)}>
+                  <div className="switch-text-block">
+                    <span className="switch-title">Continuous (Contiguous)</span>
+                    <span className="switch-desc">
+                      {wandContinuous
+                        ? "ON: Only recolor/select the clicked stroke"
+                        : "OFF: Recolor/select all matching colors across layer"}
+                    </span>
+                  </div>
+                  <div className={`switch-toggle-pill ${wandContinuous ? "checked" : ""}`}>
+                    <div className="toggle-thumb" />
+                  </div>
                 </div>
 
                 <span className="drawer-label">Active Magic Color</span>
@@ -377,13 +475,14 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
                 <button
                   className="replace-all-btn"
                   onClick={onReplaceAllColorOnLayer}
-                  title="Replace all strokes of this color on the active layer"
+                  title="Replace all occurrences of this color on the active layer"
                 >
-                  ⚡ Replace Selected Color Across Layer
+                  ⚡ Global Replace on Layer
                 </button>
               </div>
             )}
 
+            {/* COLOR PALETTE */}
             {(activeTool === "palette" || activeTool === "brush" || activeTool === "pencil") && (
               <div className="drawer-section">
                 <span className="drawer-label">Curated Color Palettes</span>
@@ -415,27 +514,27 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
+            {/* SHAPES */}
             {activeTool === "shapes" && (
               <div className="drawer-section">
                 <span className="drawer-label">Picturebook Shapes</span>
                 <div className="story-shapes-matrix">
                   {[
-                    { id: "star", label: "Star", icon: "⭐" },
-                    { id: "heart", label: "Heart", icon: "💖" },
-                    { id: "cloud", label: "Cloud", icon: "☁️" },
-                    { id: "moon", label: "Crescent", icon: "🌙" },
-                    { id: "flower", label: "Petal", icon: "🌸" },
-                    { id: "speech", label: "Speech", icon: "💬" },
-                    { id: "thought", label: "Dream", icon: "💭" },
-                    { id: "circle", label: "Round", icon: "⭕" },
-                    { id: "rect", label: "Frame", icon: "🔲" },
+                    { id: "star", label: "Star" },
+                    { id: "heart", label: "Heart" },
+                    { id: "cloud", label: "Cloud" },
+                    { id: "moon", label: "Crescent" },
+                    { id: "flower", label: "Petal" },
+                    { id: "speech", label: "Speech" },
+                    { id: "thought", label: "Dream" },
+                    { id: "circle", label: "Round" },
+                    { id: "rect", label: "Frame" },
                   ].map((s) => (
                     <button
                       key={s.id}
                       className="story-shape-card"
                       onClick={() => onAddShape(s.id as ShapeType)}
                     >
-                      <span className="shape-stamp">{s.icon}</span>
                       <span className="shape-tag">{s.label}</span>
                     </button>
                   ))}
@@ -484,6 +583,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
+            {/* STICKERS */}
             {activeTool === "stickers" && (
               <div className="drawer-section">
                 <div className="sticker-category-tabs">
@@ -523,6 +623,7 @@ export const DrawingToolbox: React.FC<DrawingToolboxProps> = ({
               </div>
             )}
 
+            {/* ARRANGE */}
             {(activeTool === "arrange" || activeTool === "select") && (
               <div className="drawer-section">
                 <span className="drawer-label">Element Layering</span>

@@ -49,6 +49,8 @@ export default function App() {
   const [brushSubtype, setBrushSubtype] = useState<BrushSubtype>("ink");
   const [wandMode, setWandMode] = useState<WandMode>("recolor");
   const [wandColor, setWandColor] = useState<string>("#c68b59");
+  const [wandContinuous, setWandContinuous] = useState<boolean>(true);
+
   const [brushColor, setBrushColor] = useState<string>("#1d291e");
   const [brushSize, setBrushSize] = useState<number>(5);
   const [brushOpacity, setBrushOpacity] = useState<number>(1);
@@ -1176,6 +1178,8 @@ export default function App() {
           onSetWandMode={setWandMode}
           wandColor={wandColor}
           onSetWandColor={setWandColor}
+          wandContinuous={wandContinuous}
+          onSetWandContinuous={setWandContinuous}
           onReplaceAllColorOnLayer={handleReplaceAllColorOnLayer}
           brushSize={brushSize}
           onSetBrushSize={setBrushSize}
@@ -1223,6 +1227,7 @@ export default function App() {
               brushSubtype={brushSubtype}
               wandMode={wandMode}
               wandColor={wandColor}
+              wandContinuous={wandContinuous}
               brushColor={brushColor}
               brushSize={brushSize}
               brushOpacity={brushOpacity}
