@@ -1,8 +1,18 @@
+export interface CanvasLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  opacity: number;
+}
+
 export interface BookSpread {
   id: string;
   leftPageNum: number;
   rightPageNum: number;
   canvasData: any | null;
+  layers?: CanvasLayer[];
+  activeLayerId?: string;
 }
 
 export interface BookTheme {

@@ -5,16 +5,20 @@ import {
   DrawingToolbox,
   ToolId,
   BrushSubtype,
-  WandSubtype,
+  WandMode,
   ShapeType,
   StickerDefinition,
 } from "./components/DrawingToolbox";
-import { LayersPanel, LayerItem } from "./components/LayersPanel";
+import { LayersPanel } from "./components/LayersPanel";
 import { ThemePreviewModal } from "./components/ThemePreviewModal";
-import { BookProject } from "./types";
+import { BookProject, CanvasLayer } from "./types";
 import { THEMES, FONTS } from "./constants";
 import { exportBookToPdf } from "./utils/pdfExport";
 import "./App.css";
+
+const DEFAULT_LAYERS: CanvasLayer[] = [
+  { id: "layer-1", name: "Artwork Layer", visible: true, locked: false, opacity: 1 },
+];
 
 export default function App() {
   const [projects, setProjects] = useState<BookProject[]>([]);
@@ -30,44 +34,37 @@ export default function App() {
   const activeCanvasRef = useRef<Canvas | null>(null);
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
 
-  // Layers panel state
   const [isLayersOpen, setIsLayersOpen] = useState<boolean>(true);
-  const [layers, setLayers] = useState<LayerItem[]>([]);
 
-  // History
   const undoStackRef = useRef<any[]>([]);
   const redoStackRef = useRef<any[]>([]);
   const isHistoryLockedRef = useRef<boolean>(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  // Toolbox state
   const [activeTool, setActiveTool] = useState<ToolId>("brush");
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [mode, setMode] = useState<"select" | "draw" | "pan">("draw");
 
   const [brushSubtype, setBrushSubtype] = useState<BrushSubtype>("ink");
-  const [wandSubtype, setWandSubtype] = useState<WandSubtype>("stardust");
+  const [wandMode, setWandMode] = useState<WandMode>("recolor");
+  const [wandColor, setWandColor] = useState<string>("#c68b59");
   const [brushColor, setBrushColor] = useState<string>("#1d291e");
   const [brushSize, setBrushSize] = useState<number>(5);
   const [brushOpacity, setBrushOpacity] = useState<number>(1);
 
-  // Shapes
   const [shapeFill, setShapeFill] = useState<string>("#dda15e");
   const [shapeStroke, setShapeStroke] = useState<string>("#2c211a");
   const [shapeStrokeWidth, setShapeStrokeWidth] = useState<number>(2);
 
-  // Viewport Zoom/Pan
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Typography
   const [selectedFont, setSelectedFont] = useState<string>("Patrick Hand");
   const [fontSize, setFontSize] = useState<number>(34);
 
-  // Modals
   const [isCreatingModal, setIsCreatingModal] = useState<boolean>(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
@@ -87,6 +84,14 @@ export default function App() {
       ) || activeProject.spreads[0]
     : null;
 
+  const currentLayers: CanvasLayer[] =
+    activeSpread?.layers && activeSpread.layers.length > 0
+      ? activeSpread.layers
+      : DEFAULT_LAYERS;
+
+  const activeLayerId: string =
+    activeSpread?.activeLayerId || currentLayers[0]?.id || "layer-1";
+
   const activeSide =
     activeSpread && activePageNum === activeSpread.leftPageNum
       ? "left"
@@ -94,56 +99,47 @@ export default function App() {
   const totalPages = activeProject ? activeProject.spreads.length * 2 : 0;
   const pageList = Array.from({ length: totalPages }, (_, i) => i + 1);
 
-  // Sync Layers function
-  const updateLayersList = useCallback((c?: Canvas) => {
-    const canvas = c || activeCanvasRef.current;
-    if (!canvas) return;
+  const syncObjectsLayerZOrder = (canvas: Canvas, orderedLayers: CanvasLayer[]) => {
+    const bottomToTopIds = [...orderedLayers].reverse().map((l) => l.id);
+    const objects = canvas.getObjects();
 
-    const rawObjects = canvas.getObjects();
-    const reversed = [...rawObjects].reverse();
-
-    const layerItems: LayerItem[] = reversed.map((obj: any, idx: number) => {
-      let icon = "✏️";
-      let name = "Drawing Stroke";
-      let type = "Brush Path";
-
-      if (obj.type === "i-text" || obj.type === "text") {
-        icon = "🔤";
-        name = obj.text ? `"${obj.text.substring(0, 16)}..."` : "Story Text";
-        type = "Typography";
-      } else if (obj.type === "path") {
-        if (obj.stickerId) {
-          icon = "⭐";
-          name = obj.stickerName || "Story Sticker";
-          type = "Sticker Stamp";
-        } else if (obj.globalCompositeOperation === "destination-out") {
-          icon = "🧹";
-          name = "Eraser Cut";
-          type = "Eraser Path";
-        } else {
-          icon = "✒️";
-          name = `Stroke #${reversed.length - idx}`;
-          type = "Vector Path";
-        }
-      } else if (obj.type === "circle" || obj.type === "rect") {
-        icon = "🔷";
-        name = `${obj.type.charAt(0).toUpperCase() + obj.type.slice(1)} Shape`;
-        type = "Geometry";
-      }
-
-      return {
-        id: obj.id || `layer-${idx}-${Date.now()}`,
-        type,
-        name,
-        icon,
-        visible: obj.visible !== false,
-        locked: !obj.selectable,
-        fabricObj: obj,
-      };
+    objects.sort((a: any, b: any) => {
+      const layerA = a.layerId || bottomToTopIds[0];
+      const layerB = b.layerId || bottomToTopIds[0];
+      const idxA = bottomToTopIds.indexOf(layerA);
+      const idxB = bottomToTopIds.indexOf(layerB);
+      return idxA - idxB;
     });
 
-    setLayers(layerItems);
-  }, []);
+    (canvas as any)._objects = objects;
+    canvas.requestRenderAll();
+  };
+
+  const updateCurrentSpreadLayers = (
+    newLayers: CanvasLayer[],
+    newActiveLayerId?: string
+  ) => {
+    if (!activeProject || !activeSpread) return;
+
+    setProjects((prev) =>
+      prev.map((proj) =>
+        proj.id === activeProjectId
+          ? {
+              ...proj,
+              spreads: proj.spreads.map((s) =>
+                s.id === activeSpread.id
+                  ? {
+                      ...s,
+                      layers: newLayers,
+                      activeLayerId: newActiveLayerId || s.activeLayerId,
+                    }
+                  : s
+              ),
+            }
+          : proj
+      )
+    );
+  };
 
   const recordCanvasState = useCallback((targetCanvas?: Canvas) => {
     const c = targetCanvas || activeCanvasRef.current;
@@ -157,8 +153,7 @@ export default function App() {
     redoStackRef.current = [];
     setCanUndo(undoStackRef.current.length > 1);
     setCanRedo(false);
-    updateLayersList(c);
-  }, [updateLayersList]);
+  }, []);
 
   const handleUndo = useCallback(() => {
     const c = activeCanvasRef.current;
@@ -175,9 +170,8 @@ export default function App() {
       isHistoryLockedRef.current = false;
       setCanUndo(undoStackRef.current.length > 1);
       setCanRedo(redoStackRef.current.length > 0);
-      updateLayersList(c);
     });
-  }, [updateLayersList]);
+  }, []);
 
   const handleRedo = useCallback(() => {
     const c = activeCanvasRef.current;
@@ -193,9 +187,8 @@ export default function App() {
       isHistoryLockedRef.current = false;
       setCanUndo(undoStackRef.current.length > 1);
       setCanRedo(redoStackRef.current.length > 0);
-      updateLayersList(c);
     });
-  }, [updateLayersList]);
+  }, []);
 
   const deleteElement = useCallback((specificObj?: any) => {
     const c = activeCanvasRef.current;
@@ -247,7 +240,6 @@ export default function App() {
     redoStackRef.current = [];
     setCanUndo(false);
     setCanRedo(false);
-    updateLayersList(canvas);
   };
 
   const handleSelectTool = (tool: ToolId) => {
@@ -257,6 +249,130 @@ export default function App() {
     } else if (tool === "pencil" || tool === "brush" || tool === "wand") {
       setMode("draw");
     }
+  };
+
+  const handleAddLayer = () => {
+    const newId = `layer-${Date.now()}`;
+    const newLayer: CanvasLayer = {
+      id: newId,
+      name: `Layer ${currentLayers.length + 1}`,
+      visible: true,
+      locked: false,
+      opacity: 1,
+    };
+    const updated = [newLayer, ...currentLayers];
+    updateCurrentSpreadLayers(updated, newId);
+    if (activeCanvasRef.current) {
+      syncObjectsLayerZOrder(activeCanvasRef.current, updated);
+    }
+  };
+
+  const handleRenameLayer = (layerId: string, newName: string) => {
+    const updated = currentLayers.map((l) =>
+      l.id === layerId ? { ...l, name: newName } : l
+    );
+    updateCurrentSpreadLayers(updated);
+  };
+
+  const handleToggleLayerVisibility = (layerId: string) => {
+    const targetLayer = currentLayers.find((l) => l.id === layerId);
+    if (!targetLayer) return;
+
+    const nextVis = !targetLayer.visible;
+    const updated = currentLayers.map((l) =>
+      l.id === layerId ? { ...l, visible: nextVis } : l
+    );
+    updateCurrentSpreadLayers(updated);
+
+    const c = activeCanvasRef.current;
+    if (c) {
+      c.getObjects().forEach((obj: any) => {
+        if (obj.layerId === layerId) {
+          obj.set("visible", nextVis);
+        }
+      });
+      c.discardActiveObject();
+      c.requestRenderAll();
+      recordCanvasState(c);
+    }
+  };
+
+  const handleToggleLayerLock = (layerId: string) => {
+    const targetLayer = currentLayers.find((l) => l.id === layerId);
+    if (!targetLayer) return;
+
+    const nextLocked = !targetLayer.locked;
+    const updated = currentLayers.map((l) =>
+      l.id === layerId ? { ...l, locked: nextLocked } : l
+    );
+    updateCurrentSpreadLayers(updated);
+
+    const c = activeCanvasRef.current;
+    if (c) {
+      c.getObjects().forEach((obj: any) => {
+        if (obj.layerId === layerId) {
+          obj.set({
+            selectable: !nextLocked,
+            evented: !nextLocked,
+          });
+        }
+      });
+      c.discardActiveObject();
+      c.requestRenderAll();
+    }
+  };
+
+  const handleReorderLayers = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    const updated = [...currentLayers];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+
+    updateCurrentSpreadLayers(updated);
+    const c = activeCanvasRef.current;
+    if (c) {
+      syncObjectsLayerZOrder(c, updated);
+      recordCanvasState(c);
+    }
+  };
+
+  const handleDeleteLayer = (layerId: string) => {
+    if (currentLayers.length <= 1) return;
+
+    const updated = currentLayers.filter((l) => l.id !== layerId);
+    const nextActive = activeLayerId === layerId ? updated[0].id : activeLayerId;
+    updateCurrentSpreadLayers(updated, nextActive);
+
+    const c = activeCanvasRef.current;
+    if (c) {
+      const toRemove = c.getObjects().filter((obj: any) => obj.layerId === layerId);
+      toRemove.forEach((obj) => c.remove(obj));
+      c.discardActiveObject();
+      c.renderAll();
+      recordCanvasState(c);
+    }
+  };
+
+  const handleReplaceAllColorOnLayer = () => {
+    const c = activeCanvasRef.current;
+    if (!c || !selectedObject) return;
+
+    const targetColor =
+      (selectedObject.stroke && selectedObject.stroke !== "transparent"
+        ? selectedObject.stroke
+        : selectedObject.fill) || "";
+    const normTarget = targetColor.toString().toLowerCase().trim();
+
+    c.getObjects().forEach((obj: any) => {
+      if (obj.layerId && obj.layerId !== activeLayerId) return;
+      const s = (obj.stroke || "").toString().toLowerCase().trim();
+      const f = (obj.fill || "").toString().toLowerCase().trim();
+      if (s === normTarget) obj.set("stroke", wandColor);
+      if (f === normTarget) obj.set("fill", wandColor);
+    });
+
+    c.requestRenderAll();
+    recordCanvasState(c);
   };
 
   const handleAddShape = (type: ShapeType) => {
@@ -382,15 +498,15 @@ export default function App() {
       });
     }
 
+    shapeObj.set("layerId", activeLayerId);
     c.add(shapeObj);
     c.setActiveObject(shapeObj);
     setMode("select");
     setActiveTool("select");
-    c.renderAll();
+    syncObjectsLayerZOrder(c, currentLayers);
     recordCanvasState(c);
   };
 
-  // Guaranteed vector sticker rendering
   const handleAddSticker = (sticker: StickerDefinition) => {
     const c = activeCanvasRef.current;
     if (!c) return;
@@ -414,62 +530,13 @@ export default function App() {
 
     (stickerPath as any).stickerId = sticker.id;
     (stickerPath as any).stickerName = sticker.name;
+    stickerPath.set("layerId", activeLayerId);
 
     c.add(stickerPath);
     c.setActiveObject(stickerPath);
     setMode("select");
     setActiveTool("select");
-    c.renderAll();
-    recordCanvasState(c);
-  };
-
-  // Layers panel interaction handlers
-  const handleSelectLayer = (obj: any) => {
-    const c = activeCanvasRef.current;
-    if (!c) return;
-    c.setActiveObject(obj);
-    setSelectedObject(obj);
-    setMode("select");
-    setActiveTool("select");
-    c.renderAll();
-  };
-
-  const handleToggleVisibility = (obj: any) => {
-    const c = activeCanvasRef.current;
-    if (!c) return;
-    obj.set("visible", !obj.visible);
-    c.renderAll();
-    updateLayersList(c);
-    recordCanvasState(c);
-  };
-
-  const handleToggleLock = (obj: any) => {
-    const c = activeCanvasRef.current;
-    if (!c) return;
-    const isNowLocked = obj.selectable;
-    obj.set({
-      selectable: !isNowLocked,
-      evented: !isNowLocked,
-    });
-    c.renderAll();
-    updateLayersList(c);
-  };
-
-  const handleMoveLayerUp = (obj: any) => {
-    const c = activeCanvasRef.current;
-    if (!c) return;
-    c.bringObjectForward(obj);
-    c.renderAll();
-    updateLayersList(c);
-    recordCanvasState(c);
-  };
-
-  const handleMoveLayerDown = (obj: any) => {
-    const c = activeCanvasRef.current;
-    if (!c) return;
-    c.sendObjectBackwards(obj);
-    c.renderAll();
-    updateLayersList(c);
+    syncObjectsLayerZOrder(c, currentLayers);
     recordCanvasState(c);
   };
 
@@ -482,10 +549,11 @@ export default function App() {
         cloned.set({
           left: (active.left || 100) + 25,
           top: (active.top || 100) + 25,
+          layerId: (active as any).layerId || activeLayerId,
         });
         c.add(cloned);
         c.setActiveObject(cloned);
-        c.renderAll();
+        syncObjectsLayerZOrder(c, currentLayers);
         recordCanvasState(c);
       });
     }
@@ -504,8 +572,22 @@ export default function App() {
       themeId: newThemeId,
       createdAt: new Date().toLocaleDateString(),
       spreads: [
-        { id: "s-1", leftPageNum: 1, rightPageNum: 2, canvasData: null },
-        { id: "s-2", leftPageNum: 3, rightPageNum: 4, canvasData: null },
+        {
+          id: "s-1",
+          leftPageNum: 1,
+          rightPageNum: 2,
+          canvasData: null,
+          layers: DEFAULT_LAYERS,
+          activeLayerId: "layer-1",
+        },
+        {
+          id: "s-2",
+          leftPageNum: 3,
+          rightPageNum: 4,
+          canvasData: null,
+          layers: DEFAULT_LAYERS,
+          activeLayerId: "layer-1",
+        },
       ],
     };
 
@@ -531,7 +613,14 @@ export default function App() {
           ? {
               ...p,
               spreads: p.spreads.map((s) =>
-                s.id === activeSpread.id ? { ...s, canvasData: json } : s
+                s.id === activeSpread.id
+                  ? {
+                      ...s,
+                      canvasData: json,
+                      layers: currentLayers,
+                      activeLayerId: activeLayerId,
+                    }
+                  : s
               ),
             }
           : p
@@ -576,7 +665,6 @@ export default function App() {
             redoStackRef.current = [];
             setCanUndo(false);
             setCanRedo(false);
-            updateLayersList(c);
           });
         } else {
           c.clear();
@@ -587,7 +675,6 @@ export default function App() {
           redoStackRef.current = [];
           setCanUndo(false);
           setCanRedo(false);
-          updateLayersList(c);
         }
       }
     }, 450);
@@ -607,6 +694,8 @@ export default function App() {
       leftPageNum: newLeft,
       rightPageNum: newLeft + 1,
       canvasData: null,
+      layers: DEFAULT_LAYERS,
+      activeLayerId: "layer-1",
     };
 
     setProjects((prev) =>
@@ -645,11 +734,12 @@ export default function App() {
       transparentCorners: false,
     });
 
+    text.set("layerId", activeLayerId);
     c.add(text);
     c.setActiveObject(text);
     setMode("select");
     setActiveTool("select");
-    c.renderAll();
+    syncObjectsLayerZOrder(c, currentLayers);
     recordCanvasState(c);
   };
 
@@ -1061,7 +1151,6 @@ export default function App() {
       </header>
 
       <div className="lofi-editor-body">
-        {/* LEFT DUAL RAIL + FLYOUT */}
         <DrawingToolbox
           activeTool={activeTool}
           onSelectTool={handleSelectTool}
@@ -1069,8 +1158,11 @@ export default function App() {
           onToggleDrawer={() => setIsDrawerOpen(!isDrawerOpen)}
           brushSubtype={brushSubtype}
           onSetBrushSubtype={setBrushSubtype}
-          wandSubtype={wandSubtype}
-          onSetWandSubtype={setWandSubtype}
+          wandMode={wandMode}
+          onSetWandMode={setWandMode}
+          wandColor={wandColor}
+          onSetWandColor={setWandColor}
+          onReplaceAllColorOnLayer={handleReplaceAllColorOnLayer}
           brushSize={brushSize}
           onSetBrushSize={setBrushSize}
           brushColor={brushColor}
@@ -1086,13 +1178,12 @@ export default function App() {
           onAddShape={handleAddShape}
           onAddSticker={handleAddSticker}
           hasSelection={!!selectedObject}
-          onBringForward={() => selectedObject && handleMoveLayerUp(selectedObject)}
-          onSendBackward={() => selectedObject && handleMoveLayerDown(selectedObject)}
+          onBringForward={() => {}}
+          onSendBackward={() => {}}
           onDuplicate={handleDuplicate}
           onDelete={() => deleteElement()}
         />
 
-        {/* CENTER VIEWPORT */}
         <main
           className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
             isPanning ? "grabbing" : ""
@@ -1113,33 +1204,35 @@ export default function App() {
               mode={mode}
               toolType={currentToolCategory}
               brushSubtype={brushSubtype}
-              wandSubtype={wandSubtype}
+              wandMode={wandMode}
+              wandColor={wandColor}
               brushColor={brushColor}
               brushSize={brushSize}
               brushOpacity={brushOpacity}
+              activeLayerId={activeLayerId}
               canvasData={activeSpread.canvasData}
               activeSide={activeSide}
               turnState={turnState}
               onCanvasReady={handleCanvasReady}
               onSelectionChange={setSelectedObject}
+              onSelectLayerByTouch={(lId) => updateCurrentSpreadLayers(currentLayers, lId)}
               onSaveState={recordCanvasState}
-              onLayersChange={updateLayersList}
             />
           </div>
         </main>
 
-        {/* RIGHT COLLAPSIBLE LAYERS PANEL */}
         <LayersPanel
           isOpen={isLayersOpen}
           onToggle={() => setIsLayersOpen(!isLayersOpen)}
-          layers={layers}
-          selectedObj={selectedObject}
-          onSelectLayer={handleSelectLayer}
-          onToggleVisibility={handleToggleVisibility}
-          onToggleLock={handleToggleLock}
-          onMoveUp={handleMoveLayerUp}
-          onMoveDown={handleMoveLayerDown}
-          onDeleteLayer={(obj) => deleteElement(obj)}
+          layers={currentLayers}
+          activeLayerId={activeLayerId}
+          onSelectLayer={(lId) => updateCurrentSpreadLayers(currentLayers, lId)}
+          onAddLayer={handleAddLayer}
+          onRenameLayer={handleRenameLayer}
+          onToggleVisibility={handleToggleLayerVisibility}
+          onToggleLock={handleToggleLayerLock}
+          onReorderLayers={handleReorderLayers}
+          onDeleteLayer={handleDeleteLayer}
         />
       </div>
 

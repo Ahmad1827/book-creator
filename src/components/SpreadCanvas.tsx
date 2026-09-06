@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import { Canvas, PencilBrush, Shadow, config } from "fabric";
+import { Canvas, PencilBrush, ActiveSelection, config } from "fabric";
 import { BookTheme } from "../types";
 import { ThemeDecors } from "./ThemeDecors";
-import { BrushSubtype, WandSubtype } from "./DrawingToolbox";
+import { BrushSubtype, WandMode } from "./DrawingToolbox";
 
 if (config) {
   config.devicePixelRatio = Math.max(window.devicePixelRatio || 1, 2);
@@ -13,17 +13,19 @@ interface SpreadCanvasProps {
   mode: "select" | "draw" | "pan";
   toolType: "pencil" | "brush" | "wand";
   brushSubtype: BrushSubtype;
-  wandSubtype: WandSubtype;
+  wandMode: WandMode;
+  wandColor: string;
   brushColor: string;
   brushSize: number;
   brushOpacity: number;
+  activeLayerId: string;
   canvasData: any | null;
   activeSide: "left" | "right";
   turnState: { active: boolean; direction: "next" | "prev" } | null;
   onCanvasReady: (canvas: Canvas) => void;
   onSelectionChange: (target: any | null) => void;
+  onSelectLayerByTouch: (layerId: string) => void;
   onSaveState: (canvas: Canvas) => void;
-  onLayersChange: (canvas: Canvas) => void;
 }
 
 export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
@@ -31,29 +33,39 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   mode,
   toolType,
   brushSubtype,
-  wandSubtype,
+  wandMode,
+  wandColor,
   brushColor,
   brushSize,
   brushOpacity,
+  activeLayerId,
   canvasData,
   activeSide,
   turnState,
   onCanvasReady,
   onSelectionChange,
+  onSelectLayerByTouch,
   onSaveState,
-  onLayersChange,
 }) => {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
   const fabricRef = useRef<Canvas | null>(null);
 
+  const activeLayerIdRef = useRef(activeLayerId);
   const onSaveStateRef = useRef(onSaveState);
-  const onLayersChangeRef = useRef(onLayersChange);
+  const onSelectLayerByTouchRef = useRef(onSelectLayerByTouch);
   const brushSubtypeRef = useRef(brushSubtype);
+  const toolTypeRef = useRef(toolType);
+  const wandModeRef = useRef(wandMode);
+  const wandColorRef = useRef(wandColor);
 
   useEffect(() => {
+    activeLayerIdRef.current = activeLayerId;
     onSaveStateRef.current = onSaveState;
-    onLayersChangeRef.current = onLayersChange;
+    onSelectLayerByTouchRef.current = onSelectLayerByTouch;
     brushSubtypeRef.current = brushSubtype;
+    toolTypeRef.current = toolType;
+    wandModeRef.current = wandMode;
+    wandColorRef.current = wandColor;
   });
 
   useEffect(() => {
@@ -63,7 +75,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       width: 1200,
       height: 650,
       backgroundColor: "transparent",
-      isDrawingMode: mode === "draw",
+      isDrawingMode: mode === "draw" && toolType !== "wand",
       selection: mode === "select",
       enableRetinaScaling: true,
     });
@@ -82,8 +94,9 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     brush.decimate = 0;
     canvas.freeDrawingBrush = brush;
 
-    // Fix eraser on path creation
     canvas.on("path:created", (opt: any) => {
+      opt.path.set("layerId", activeLayerIdRef.current);
+
       if (brushSubtypeRef.current === "eraser") {
         opt.path.set({
           globalCompositeOperation: "destination-out",
@@ -91,26 +104,73 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
           selectable: false,
           evented: false,
         });
-        canvas.renderAll();
       }
+      canvas.renderAll();
       onSaveStateRef.current(canvas);
-      onLayersChangeRef.current(canvas);
+    });
+
+    canvas.on("mouse:down", (e) => {
+      if (toolTypeRef.current !== "wand") return;
+
+      const target = e.target as any;
+      if (!target) return;
+
+      const newColor = wandColorRef.current;
+
+      if (wandModeRef.current === "recolor") {
+        if (target.type === "path" && !target.stickerId) {
+          target.set("stroke", newColor);
+        } else if (target.type === "i-text") {
+          target.set("fill", newColor);
+        } else {
+          target.set("fill", newColor);
+          if (target.stroke && target.stroke !== "transparent") {
+            target.set("stroke", newColor);
+          }
+        }
+        canvas.requestRenderAll();
+        onSaveStateRef.current(canvas);
+      } else if (wandModeRef.current === "select_similar") {
+        const targetColor =
+          (target.stroke && target.stroke !== "transparent" ? target.stroke : target.fill) || "";
+        const normTarget = targetColor.toString().toLowerCase().trim();
+
+        const matching = canvas.getObjects().filter((obj: any) => {
+          if (obj.layerId && obj.layerId !== activeLayerIdRef.current) return false;
+          const s = (obj.stroke || "").toString().toLowerCase().trim();
+          const f = (obj.fill || "").toString().toLowerCase().trim();
+          return s === normTarget || f === normTarget;
+        });
+
+        if (matching.length > 0) {
+          canvas.discardActiveObject();
+          const sel = new ActiveSelection(matching, { canvas });
+          canvas.setActiveObject(sel);
+          canvas.requestRenderAll();
+        }
+      }
     });
 
     canvas.on("object:modified", () => {
       onSaveStateRef.current(canvas);
-      onLayersChangeRef.current(canvas);
     });
 
-    canvas.on("object:added", () => onLayersChangeRef.current(canvas));
-    canvas.on("object:removed", () => onLayersChangeRef.current(canvas));
+    canvas.on("selection:created", (e) => {
+      const selected = e.selected ? e.selected[0] : null;
+      onSelectionChange(selected);
+      if (selected && (selected as any).layerId) {
+        onSelectLayerByTouchRef.current((selected as any).layerId);
+      }
+    });
 
-    canvas.on("selection:created", (e) =>
-      onSelectionChange(e.selected ? e.selected[0] : null)
-    );
-    canvas.on("selection:updated", (e) =>
-      onSelectionChange(e.selected ? e.selected[0] : null)
-    );
+    canvas.on("selection:updated", (e) => {
+      const selected = e.selected ? e.selected[0] : null;
+      onSelectionChange(selected);
+      if (selected && (selected as any).layerId) {
+        onSelectLayerByTouchRef.current((selected as any).layerId);
+      }
+    });
+
     canvas.on("selection:cleared", () => onSelectionChange(null));
 
     fabricRef.current = canvas;
@@ -120,7 +180,6 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       canvas.loadFromJSON(canvasData).then(() => {
         canvas.backgroundColor = "transparent";
         canvas.renderAll();
-        onLayersChangeRef.current(canvas);
       });
     }
 
@@ -133,8 +192,10 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     const canvas = fabricRef.current;
     if (!canvas) return;
 
-    canvas.isDrawingMode = mode === "draw";
+    const isWand = toolType === "wand";
+    canvas.isDrawingMode = mode === "draw" && !isWand;
     canvas.selection = mode === "select";
+    canvas.defaultCursor = isWand ? "crosshair" : mode === "pan" ? "grab" : "default";
 
     if (canvas.freeDrawingBrush) {
       const b = canvas.freeDrawingBrush as any;
@@ -142,17 +203,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       b.strokeLineJoin = "round";
       b.decimate = 0;
 
-      if (toolType === "wand") {
-        b.width = brushSize * 1.5;
-        b.color = brushColor;
-        b.globalCompositeOperation = "source-over";
-        b.shadow = new Shadow({
-          color: brushColor,
-          blur: 14,
-          offsetX: 0,
-          offsetY: 0,
-        });
-      } else if (toolType === "pencil") {
+      if (toolType === "pencil") {
         b.shadow = null;
         b.width = Math.max(1, brushSize);
         b.color = brushColor;
@@ -160,7 +211,6 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       } else {
         b.shadow = null;
         if (brushSubtype === "eraser") {
-          // Visible preview while drawing
           b.color = "rgba(255, 255, 255, 0.85)";
           b.width = brushSize * 1.6;
           b.globalCompositeOperation = "source-over";
@@ -175,7 +225,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
         }
       }
     }
-  }, [mode, toolType, brushSubtype, wandSubtype, brushColor, brushSize, brushOpacity]);
+  }, [mode, toolType, brushSubtype, brushColor, brushSize, brushOpacity]);
 
   return (
     <div
@@ -199,7 +249,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
         <div className={`active-page-rim ${activeSide}`} />
 
         <div
-          className="canvas-viewport-layer"
+          className={`canvas-viewport-layer ${toolType === "wand" ? "wand-active" : ""}`}
           style={{ pointerEvents: mode === "pan" ? "none" : "auto" }}
         >
           <canvas ref={canvasElRef} />
