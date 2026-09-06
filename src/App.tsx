@@ -64,6 +64,7 @@ export default function App() {
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const viewportRef = useRef<HTMLElement | null>(null);
 
   const [selectedFont, setSelectedFont] = useState<string>("Patrick Hand");
   const [fontSize, setFontSize] = useState<number>(34);
@@ -386,15 +387,10 @@ export default function App() {
     const c = activeCanvasRef.current;
     if (!c) return;
 
-    // Strict page geometry:
-    // Page canvas is 1200x650.
-    // Left Page safe zone: 60px to 540px (width 480, center 300).
-    // Right Page safe zone: 660px to 1140px (width 480, center 900).
     const pageLeft = side === "left" ? 60 : 660;
     const pageWidth = 480;
     const pageCenter = side === "left" ? 300 : 900;
 
-    // Remove any previous template objects placed on this page
     const existingTemplates = c.getObjects().filter((obj: any) => {
       return obj.isTemplateElement === true && obj.pageSide === side;
     });
@@ -412,7 +408,6 @@ export default function App() {
     };
 
     if (type === "top_art_bottom_text") {
-      // Upper illustration panel
       const topPanel = attachMeta(
         new Rect({
           left: pageLeft,
@@ -427,7 +422,6 @@ export default function App() {
         })
       );
 
-      // Lower writing/reading zone card
       const bottomCard = attachMeta(
         new Rect({
           left: pageLeft,
@@ -444,7 +438,6 @@ export default function App() {
 
       c.add(topPanel, bottomCard);
     } else if (type === "bottom_art_top_text") {
-      // Upper writing zone card
       const topCard = attachMeta(
         new Rect({
           left: pageLeft,
@@ -459,7 +452,6 @@ export default function App() {
         })
       );
 
-      // Lower illustration panel
       const bottomPanel = attachMeta(
         new Rect({
           left: pageLeft,
@@ -476,7 +468,6 @@ export default function App() {
 
       c.add(topCard, bottomPanel);
     } else if (type === "classic_arch_story") {
-      // Outer page frame
       const frameCard = attachMeta(
         new Rect({
           left: pageLeft,
@@ -491,7 +482,6 @@ export default function App() {
         })
       );
 
-      // Inset decorative dashed rule
       const innerRule = attachMeta(
         new Rect({
           left: pageLeft + 16,
@@ -509,7 +499,6 @@ export default function App() {
 
       c.add(frameCard, innerRule);
     } else if (type === "storyboard_panels") {
-      // Top storyboard panel
       const panelTop = attachMeta(
         new Rect({
           left: pageLeft,
@@ -524,7 +513,6 @@ export default function App() {
         })
       );
 
-      // Bottom storyboard panel
       const panelBottom = attachMeta(
         new Rect({
           left: pageLeft,
@@ -541,7 +529,6 @@ export default function App() {
 
       c.add(panelTop, panelBottom);
     } else if (type === "spot_rhyme") {
-      // Centered circular character portrait
       const spotCircle = attachMeta(
         new Circle({
           left: pageCenter - 110,
@@ -554,7 +541,6 @@ export default function App() {
         })
       );
 
-      // Lower card below circle
       const rhymePlaque = attachMeta(
         new Rect({
           left: pageLeft + 20,
@@ -571,7 +557,6 @@ export default function App() {
 
       c.add(spotCircle, rhymePlaque);
     } else if (type === "split_vertical") {
-      // Left half column
       const colLeft = attachMeta(
         new Rect({
           left: pageLeft,
@@ -586,7 +571,6 @@ export default function App() {
         })
       );
 
-      // Right half column
       const colRight = attachMeta(
         new Rect({
           left: pageLeft + 250,
@@ -603,7 +587,6 @@ export default function App() {
 
       c.add(colLeft, colRight);
     } else if (type === "spotless_canvas") {
-      // Cleans all template frames on this page
     }
 
     c.discardActiveObject();
@@ -908,7 +891,7 @@ export default function App() {
         } else {
           c.clear();
           c.backgroundColor = "transparent";
-          c.requestRenderAll();
+          c.renderAll();
           isHistoryLockedRef.current = false;
           undoStackRef.current = [c.toJSON()];
           redoStackRef.current = [];
@@ -928,11 +911,10 @@ export default function App() {
     saveCurrentSpread();
     const last = activeProject.spreads[activeProject.spreads.length - 1];
     const newLeft = last ? last.rightPageNum + 1 : 1;
-    const newRight = newLeft + 1;
     const newSpread = {
       id: `s-${Date.now()}`,
       leftPageNum: newLeft,
-      rightPageNum: newRight,
+      rightPageNum: newLeft + 1,
       canvasData: null,
       layers: DEFAULT_LAYERS,
       activeLayerId: "layer-1",
@@ -1018,6 +1000,34 @@ export default function App() {
     setPan({ x: 0, y: 0 });
   };
 
+  const applyZoomAtViewportPoint = (targetZoom: number, clientX?: number, clientY?: number) => {
+    const nextZoom = Math.min(250, Math.max(50, targetZoom));
+    if (nextZoom === zoomLevel) return;
+
+    const vp = viewportRef.current;
+    if (!vp) {
+      setZoomLevel(nextZoom);
+      return;
+    }
+
+    const rect = vp.getBoundingClientRect();
+    const cursorX = clientX !== undefined ? clientX - rect.left : rect.width / 2;
+    const cursorY = clientY !== undefined ? clientY - rect.top : rect.height / 2;
+
+    const relX = cursorX - rect.width / 2;
+    const relY = cursorY - rect.height / 2;
+
+    const currentScale = zoomLevel / 100;
+    const nextScale = nextZoom / 100;
+    const scaleRatio = nextScale / currentScale;
+
+    const newPanX = relX - (relX - pan.x) * scaleRatio;
+    const newPanY = relY - (relY - pan.y) * scaleRatio;
+
+    setZoomLevel(nextZoom);
+    setPan({ x: newPanX, y: newPanY });
+  };
+
   const handleMouseDownOnStage = (e: React.MouseEvent) => {
     if (mode === "pan" || e.button === 1 || e.altKey) {
       setIsPanning(true);
@@ -1048,8 +1058,8 @@ export default function App() {
 
   const handleWheelOnStage = (e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -10 : 10;
-    setZoomLevel((z) => Math.min(250, Math.max(50, z + delta)));
+    const zoomStep = e.deltaY < 0 ? 12 : -12;
+    applyZoomAtViewportPoint(zoomLevel + zoomStep, e.clientX, e.clientY);
   };
 
   const handleExport = async () => {
@@ -1329,7 +1339,7 @@ export default function App() {
           <div className="zoom-controller-cluster">
             <button
               className="zoom-btn"
-              onClick={() => setZoomLevel((z) => Math.max(50, z - 15))}
+              onClick={() => applyZoomAtViewportPoint(zoomLevel - 15)}
             >
               −
             </button>
@@ -1342,7 +1352,7 @@ export default function App() {
             </span>
             <button
               className="zoom-btn"
-              onClick={() => setZoomLevel((z) => Math.min(250, z + 15))}
+              onClick={() => applyZoomAtViewportPoint(zoomLevel + 15)}
             >
               +
             </button>
@@ -1396,7 +1406,6 @@ export default function App() {
       </header>
 
       <div className="lofi-editor-body">
-        {/* LEFT DUAL RAIL */}
         <DrawingToolbox
           activeTool={activeTool}
           onSelectTool={handleSelectTool}
@@ -1432,8 +1441,10 @@ export default function App() {
           onDelete={() => deleteElement()}
         />
 
-        {/* CANVAS VIEWPORT */}
         <main
+          ref={(el) => {
+            viewportRef.current = el;
+          }}
           className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
             isPanning ? "grabbing" : ""
           }`}
@@ -1475,7 +1486,6 @@ export default function App() {
           </div>
         </main>
 
-        {/* RIGHT DEDICATED LAYERS & LAYOUT PANEL */}
         <LayersPanel
           isOpen={isLayersOpen}
           onToggle={() => setIsLayersOpen(!isLayersOpen)}
@@ -1519,7 +1529,7 @@ export default function App() {
 
         <div className="tray-tabs-ribbon">
           {activeProject?.spreads.map((spread) => {
-            const isSelected = activeSpread.id === spread.id;
+            const isSelected = activeSpread?.id === spread.id;
             return (
               <button
                 key={spread.id}
