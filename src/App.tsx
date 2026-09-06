@@ -99,7 +99,10 @@ export default function App() {
   const totalPages = activeProject ? activeProject.spreads.length * 2 : 0;
   const pageList = Array.from({ length: totalPages }, (_, i) => i + 1);
 
-  const syncObjectsLayerZOrder = (canvas: Canvas, orderedLayers: CanvasLayer[]) => {
+  const syncObjectsLayerZOrder = (
+    canvas: Canvas,
+    orderedLayers: CanvasLayer[]
+  ) => {
     const bottomToTopIds = [...orderedLayers].reverse().map((l) => l.id);
     const objects = canvas.getObjects();
 
@@ -190,18 +193,21 @@ export default function App() {
     });
   }, []);
 
-  const deleteElement = useCallback((specificObj?: any) => {
-    const c = activeCanvasRef.current;
-    if (!c) return;
-    const target = specificObj || c.getActiveObject();
-    if (target) {
-      c.remove(target);
-      c.discardActiveObject();
-      c.renderAll();
-      setSelectedObject(null);
-      recordCanvasState(c);
-    }
-  }, [recordCanvasState]);
+  const deleteElement = useCallback(
+    (specificObj?: any) => {
+      const c = activeCanvasRef.current;
+      if (!c) return;
+      const target = specificObj || c.getActiveObject();
+      if (target) {
+        c.remove(target);
+        c.discardActiveObject();
+        c.renderAll();
+        setSelectedObject(null);
+        recordCanvasState(c);
+      }
+    },
+    [recordCanvasState]
+  );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -340,12 +346,15 @@ export default function App() {
     if (currentLayers.length <= 1) return;
 
     const updated = currentLayers.filter((l) => l.id !== layerId);
-    const nextActive = activeLayerId === layerId ? updated[0].id : activeLayerId;
+    const nextActive =
+      activeLayerId === layerId ? updated[0].id : activeLayerId;
     updateCurrentSpreadLayers(updated, nextActive);
 
     const c = activeCanvasRef.current;
     if (c) {
-      const toRemove = c.getObjects().filter((obj: any) => obj.layerId === layerId);
+      const toRemove = c
+        .getObjects()
+        .filter((obj: any) => obj.layerId === layerId);
       toRemove.forEach((obj) => c.remove(obj));
       c.discardActiveObject();
       c.renderAll();
@@ -1092,7 +1101,11 @@ export default function App() {
             >
               −
             </button>
-            <span className="zoom-label" onClick={resetView} title="Click to Reset">
+            <span
+              className="zoom-label"
+              onClick={resetView}
+              title="Click to Reset"
+            >
               {zoomLevel}%
             </span>
             <button
@@ -1151,6 +1164,7 @@ export default function App() {
       </header>
 
       <div className="lofi-editor-body">
+        {/* LEFT DUAL RAIL */}
         <DrawingToolbox
           activeTool={activeTool}
           onSelectTool={handleSelectTool}
@@ -1184,6 +1198,7 @@ export default function App() {
           onDelete={() => deleteElement()}
         />
 
+        {/* CANVAS VIEWPORT */}
         <main
           className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
             isPanning ? "grabbing" : ""
@@ -1196,7 +1211,9 @@ export default function App() {
           <div
             className="stage-book-anchor"
             style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoomLevel / 100})`,
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${
+                zoomLevel / 100
+              })`,
             }}
           >
             <SpreadCanvas
@@ -1215,12 +1232,15 @@ export default function App() {
               turnState={turnState}
               onCanvasReady={handleCanvasReady}
               onSelectionChange={setSelectedObject}
-              onSelectLayerByTouch={(lId) => updateCurrentSpreadLayers(currentLayers, lId)}
+              onSelectLayerByTouch={(lId) =>
+                updateCurrentSpreadLayers(currentLayers, lId)
+              }
               onSaveState={recordCanvasState}
             />
           </div>
         </main>
 
+        {/* RIGHT DEDICATED LAYERS PANEL */}
         <LayersPanel
           isOpen={isLayersOpen}
           onToggle={() => setIsLayersOpen(!isLayersOpen)}
