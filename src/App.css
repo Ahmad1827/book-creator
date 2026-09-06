@@ -2159,3 +2159,251 @@ body, html, #root {
   border-style: dashed;
   color: #c68b59;
 }
+
+/* =========================================================
+   START SCREEN & WORKBENCH STYLING
+   ========================================================= */
+.nav-actions-cluster {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cafe-bookshelf-workspace {
+  flex: 1;
+  max-width: 1060px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 36px 24px 60px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.hub-hero-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.hero-welcome-text h2 {
+  font-size: 26px;
+  font-weight: 800;
+  color: #f7ebe1;
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+}
+
+.hero-welcome-text p {
+  font-size: 13px;
+  color: #a89284;
+  max-width: 620px;
+  line-height: 1.5;
+}
+
+.hub-launch-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.launch-action-card {
+  background: #1f1814;
+  border: 1px solid #362920;
+  border-radius: 12px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.launch-action-card:hover {
+  background: #271f19;
+  border-color: #c68b59;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+}
+
+.card-illustration-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #29201a;
+  color: #c68b59;
+  border: 1px solid #3d2f26;
+}
+
+.card-illustration-badge.upload {
+  color: #dda15e;
+}
+
+.card-copy-block h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f7ebe1;
+  margin-bottom: 4px;
+}
+
+.card-copy-block p {
+  font-size: 11px;
+  color: #9e8576;
+  line-height: 1.4;
+}
+
+.launch-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c68b59;
+  align-self: flex-start;
+}
+
+.hub-recents-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recents-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #2b221d;
+  padding-bottom: 12px;
+}
+
+.header-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f7ebe1;
+}
+
+.section-count {
+  font-size: 11px;
+  color: #8c7668;
+}
+
+.recents-filter-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #17120f;
+  border: 1px solid #2d231e;
+  border-radius: 20px;
+  padding: 4px 12px;
+  gap: 8px;
+  color: #8c7668;
+}
+
+.recents-filter-input-wrap input {
+  background: transparent;
+  border: none;
+  color: #f7ebe1;
+  font-size: 11px;
+  outline: none;
+  width: 170px;
+}
+
+.clear-search {
+  background: none;
+  border: none;
+  color: #8c7668;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.no-search-results {
+  padding: 40px;
+  text-align: center;
+  font-size: 12px;
+  color: #8c7668;
+}
+
+.cover-top-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+}
+
+.theme-pill-tag {
+  border: 1px solid;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.date-tag {
+  opacity: 0.6;
+}
+
+.cover-title-group {
+  margin: 12px 0;
+}
+
+.cover-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.card-quick-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.action-icon-btn {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f7ebe1;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.action-icon-btn:hover {
+  background: #362820;
+  border-color: #c68b59;
+  color: #c68b59;
+}
+
+.action-icon-btn.danger:hover {
+  background: #471813;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.lofi-btn-subtle {
+  background: transparent;
+  border: 1px solid #3d2f26;
+  color: #d8c3b4;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lofi-btn-subtle:hover {
+  background: #271f19;
+  border-color: #c68b59;
+  color: #f7ebe1;
+}

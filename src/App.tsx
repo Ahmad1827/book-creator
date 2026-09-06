@@ -20,8 +20,16 @@ const DEFAULT_LAYERS: CanvasLayer[] = [
   { id: "layer-1", name: "Artwork Layer", visible: true, locked: false, opacity: 1 },
 ];
 
+const STORAGE_KEY = "atelier_lofi_projects_v1";
+
 export default function App() {
-  const [projects, setProjects] = useState<BookProject[]>([]);
+  const [projects, setProjects] = useState<BookProject[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   const [activePageNum, setActivePageNum] = useState<number>(1);
@@ -73,9 +81,17 @@ export default function App() {
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
   const [newThemeId, setNewThemeId] = useState<string>("botanical_meadow");
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const loadFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    } catch (e) {}
+  }, [projects]);
 
   const activeProject = projects.find((p) => p.id === activeProjectId) || null;
   const currentTheme =
@@ -747,11 +763,11 @@ export default function App() {
       cornerColor: currentTheme.accentColor,
       cornerSize: 8,
       transparentCorners: false,
+      layerId: activeLayerId,
     });
 
     (stickerPath as any).stickerId = sticker.id;
     (stickerPath as any).stickerName = sticker.name;
-    stickerPath.set("layerId", activeLayerId);
 
     c.add(stickerPath);
     c.setActiveObject(stickerPath);
@@ -812,7 +828,7 @@ export default function App() {
       ],
     };
 
-    setProjects((prev) => [...prev, project]);
+    setProjects((prev) => [project, ...prev]);
     setActiveProjectId(project.id);
     setActivePageNum(1);
     setActiveSide("left");
@@ -823,6 +839,66 @@ export default function App() {
     setIsCreatingModal(false);
     setNewTitle("");
     setNewAuthor("");
+  };
+
+  const handleDownloadProjectJson = (project: BookProject, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(project, null, 2));
+    const dlAnchor = document.createElement("a");
+    dlAnchor.setAttribute("href", dataStr);
+    dlAnchor.setAttribute("download", `${project.title.replace(/\s+/g, "_")}.lofibook.json`);
+    dlAnchor.click();
+  };
+
+  const handleDuplicateProject = (project: BookProject, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const duplicated: BookProject = {
+      ...project,
+      id: `book-${Date.now()}`,
+      title: `${project.title} (Copy)`,
+      createdAt: new Date().toLocaleDateString(),
+    };
+    setProjects((prev) => [duplicated, ...prev]);
+  };
+
+  const handleDeleteProject = (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to remove this book notebook?")) {
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      if (activeProjectId === projectId) {
+        setActiveProjectId(null);
+      }
+    }
+  };
+
+  const handleLoadProjectFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target?.result as string) as BookProject;
+        if (imported && imported.id && Array.isArray(imported.spreads)) {
+          setProjects((prev) => {
+            const exists = prev.some((p) => p.id === imported.id);
+            if (exists) {
+              return prev.map((p) => (p.id === imported.id ? imported : p));
+            }
+            return [imported, ...prev];
+          });
+          setActiveProjectId(imported.id);
+          setActivePageNum(imported.spreads[0]?.leftPageNum || 1);
+          resetView();
+        } else {
+          alert("Invalid book project format. Please select a valid .lofibook.json file.");
+        }
+      } catch (err) {
+        alert("Failed to parse project file: " + String(err));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   const saveCurrentSpread = () => {
@@ -911,10 +987,11 @@ export default function App() {
     saveCurrentSpread();
     const last = activeProject.spreads[activeProject.spreads.length - 1];
     const newLeft = last ? last.rightPageNum + 1 : 1;
+    const newRight = newLeft + 1;
     const newSpread = {
       id: `s-${Date.now()}`,
       leftPageNum: newLeft,
-      rightPageNum: newLeft + 1,
+      rightPageNum: newRight,
       canvasData: null,
       layers: DEFAULT_LAYERS,
       activeLayerId: "layer-1",
@@ -1088,6 +1165,11 @@ export default function App() {
   };
 
   if (!activeProject || !activeSpread) {
+    const filteredProjects = projects.filter((p) => {
+      const q = projectSearchQuery.toLowerCase();
+      return p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q);
+    });
+
     return (
       <div className="lofi-cafe-hub">
         <header className="cafe-nav">
@@ -1101,80 +1183,235 @@ export default function App() {
               <span>Children's Picture Book Studio</span>
             </div>
           </div>
-          <button
-            className="cafe-btn primary"
-            onClick={() => setIsCreatingModal(true)}
-          >
-            + Brew a New Story
-          </button>
+          <div className="nav-actions-cluster">
+            <button
+              className="cafe-btn secondary"
+              onClick={() => loadFileInputRef.current?.click()}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              Load Book (.json)
+            </button>
+            <button
+              className="cafe-btn primary"
+              onClick={() => setIsCreatingModal(true)}
+            >
+              + Create New Book
+            </button>
+          </div>
+          <input
+            type="file"
+            ref={loadFileInputRef}
+            style={{ display: "none" }}
+            accept=".json"
+            onChange={handleLoadProjectFile}
+          />
         </header>
 
-        <main className="cafe-bookshelf">
-          {projects.length === 0 ? (
-            <div className="cafe-empty-corner">
-              <div className="mug-sketch" />
-              <h2>A quiet blank notebook awaits</h2>
+        <main className="cafe-bookshelf-workspace">
+          <div className="hub-hero-section">
+            <div className="hero-welcome-text">
+              <h2>Picture Book Workbench</h2>
               <p>
-                Choose from rich storybook themes with custom corner artwork,
-                warm fonts, and crisp hand-drawn pages.
+                Author, illustrate, and craft children's picture books with custom chapter
+                borders, warm folio pagination, and printable export spreads.
               </p>
-              <button
-                className="cafe-btn primary"
-                onClick={() => setIsCreatingModal(true)}
-              >
-                Create First Notebook
-              </button>
             </div>
-          ) : (
-            <div className="notebook-grid">
-              {projects.map((proj) => {
-                const theme =
-                  THEMES.find((t) => t.id === proj.themeId) || THEMES[0];
-                return (
-                  <div
-                    key={proj.id}
-                    className="notebook-card"
-                    onClick={() => {
-                      setActiveProjectId(proj.id);
-                      setActivePageNum(1);
-                      setActiveSide("left");
-                      resetView();
-                    }}
-                  >
+
+            <div className="hub-launch-cards-grid">
+              <div className="launch-action-card" onClick={() => setIsCreatingModal(true)}>
+                <div className="card-illustration-badge new">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </div>
+                <div className="card-copy-block">
+                  <h3>Start a New Storybook</h3>
+                  <p>Choose paper texture, corner flourishes, and custom author dedication.</p>
+                </div>
+                <span className="launch-tag">Open Wizard →</span>
+              </div>
+
+              <div
+                className="launch-action-card"
+                onClick={() => loadFileInputRef.current?.click()}
+              >
+                <div className="card-illustration-badge upload">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                </div>
+                <div className="card-copy-block">
+                  <h3>Load Existing Project</h3>
+                  <p>Restore a story from a saved project file on your computer.</p>
+                </div>
+                <span className="launch-tag">Browse Files →</span>
+              </div>
+            </div>
+          </div>
+
+          <section className="hub-recents-section">
+            <div className="recents-header-bar">
+              <div className="header-meta">
+                <span className="section-title">Your Bookshelf</span>
+                <span className="section-count">{projects.length} saved notebooks</span>
+              </div>
+
+              {projects.length > 0 && (
+                <div className="recents-filter-input-wrap">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Filter by title or author..."
+                    value={projectSearchQuery}
+                    onChange={(e) => setProjectSearchQuery(e.target.value)}
+                  />
+                  {projectSearchQuery && (
+                    <button className="clear-search" onClick={() => setProjectSearchQuery("")}>✕</button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {projects.length === 0 ? (
+              <div className="cafe-empty-corner">
+                <div className="mug-sketch" />
+                <h3>Your bookshelf is quiet</h3>
+                <p>
+                  Start your very first children's book project or load a previously saved project file from disk.
+                </p>
+                <button
+                  className="cafe-btn primary"
+                  onClick={() => setIsCreatingModal(true)}
+                >
+                  Create My First Book
+                </button>
+              </div>
+            ) : filteredProjects.length === 0 ? (
+              <div className="no-search-results">
+                <span>No notebooks found matching "{projectSearchQuery}"</span>
+              </div>
+            ) : (
+              <div className="notebook-grid">
+                {filteredProjects.map((proj) => {
+                  const theme =
+                    THEMES.find((t) => t.id === proj.themeId) || THEMES[0];
+                  return (
                     <div
-                      className="notebook-spine-tab"
-                      style={{ backgroundColor: theme.spineColor }}
-                    />
-                    <div
-                      className="notebook-cover"
-                      style={{
-                        backgroundColor: theme.paperBg,
-                        borderColor: theme.borderColor,
+                      key={proj.id}
+                      className="notebook-card"
+                      onClick={() => {
+                        setActiveProjectId(proj.id);
+                        setActivePageNum(1);
+                        setActiveSide("left");
+                        resetView();
                       }}
                     >
-                      <h3 style={{ color: theme.inkColor }}>{proj.title}</h3>
-                      <span
-                        className="author-name"
-                        style={{ color: theme.inkColor }}
+                      <div
+                        className="notebook-spine-tab"
+                        style={{ backgroundColor: theme.spineColor }}
+                      />
+                      <div
+                        className="notebook-cover"
+                        style={{
+                          backgroundColor: theme.paperBg,
+                          borderColor: theme.borderColor,
+                        }}
                       >
-                        by {proj.author}
-                      </span>
-                      <span className="page-count-badge">
-                        {proj.spreads.length * 2} pages • {theme.name}
-                      </span>
+                        <div className="cover-top-meta">
+                          <span
+                            className="theme-pill-tag"
+                            style={{
+                              borderColor: theme.accentColor,
+                              color: theme.inkColor,
+                            }}
+                          >
+                            {theme.name}
+                          </span>
+                          <span className="date-tag" style={{ color: theme.inkColor }}>
+                            {proj.createdAt}
+                          </span>
+                        </div>
+
+                        <div className="cover-title-group">
+                          <h3 style={{ color: theme.inkColor }}>{proj.title}</h3>
+                          <span
+                            className="author-name"
+                            style={{ color: theme.inkColor }}
+                          >
+                            by {proj.author}
+                          </span>
+                        </div>
+
+                        <div className="cover-footer-row">
+                          <span className="page-count-badge">
+                            {proj.spreads.length * 2} pages • {proj.spreads.length} spreads
+                          </span>
+
+                          <div
+                            className="card-quick-actions"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              className="action-icon-btn"
+                              title="Download Project (.json)"
+                              onClick={(e) => handleDownloadProjectJson(proj, e)}
+                            >
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                              </svg>
+                            </button>
+
+                            <button
+                              className="action-icon-btn"
+                              title="Duplicate Book"
+                              onClick={(e) => handleDuplicateProject(proj, e)}
+                            >
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                              </svg>
+                            </button>
+
+                            <button
+                              className="action-icon-btn danger"
+                              title="Delete Book"
+                              onClick={(e) => handleDeleteProject(proj.id, e)}
+                            >
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </main>
 
         {isCreatingModal && (
           <div className="cafe-modal-backdrop">
             <div className="cafe-modal large">
               <div className="modal-title-row">
-                <h3>New Story Notebook</h3>
+                <div className="title-block">
+                  <h3>New Story Notebook</h3>
+                  <span className="modal-subtitle">Configure your cover, dedicating author, and illustrated borders</span>
+                </div>
                 <button
                   className="close-modal-btn"
                   onClick={() => setIsCreatingModal(false)}
@@ -1396,6 +1633,13 @@ export default function App() {
 
         <div className="topbar-right">
           <button
+            className="lofi-btn-subtle"
+            title="Export project backup file"
+            onClick={() => activeProject && handleDownloadProjectJson(activeProject)}
+          >
+            Save File (.json)
+          </button>
+          <button
             className="export-leather-btn"
             disabled={isExporting}
             onClick={handleExport}
@@ -1529,7 +1773,7 @@ export default function App() {
 
         <div className="tray-tabs-ribbon">
           {activeProject?.spreads.map((spread) => {
-            const isSelected = activeSpread?.id === spread.id;
+            const isSelected = activeSpread.id === spread.id;
             return (
               <button
                 key={spread.id}
