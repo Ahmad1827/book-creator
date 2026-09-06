@@ -9,7 +9,7 @@ import {
   ShapeType,
   StickerDefinition,
 } from "./components/DrawingToolbox";
-import { LayersPanel } from "./components/LayersPanel";
+import { LayersPanel, PageDivisionType } from "./components/LayersPanel";
 import { ThemePreviewModal } from "./components/ThemePreviewModal";
 import { BookProject, CanvasLayer } from "./types";
 import { THEMES, FONTS } from "./constants";
@@ -25,6 +25,7 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   const [activePageNum, setActivePageNum] = useState<number>(1);
+  const [activeSide, setActiveSide] = useState<"left" | "right">("left");
   const [turnState, setTurnState] = useState<{
     active: boolean;
     direction: "next" | "prev";
@@ -94,10 +95,6 @@ export default function App() {
   const activeLayerId: string =
     activeSpread?.activeLayerId || currentLayers[0]?.id || "layer-1";
 
-  const activeSide =
-    activeSpread && activePageNum === activeSpread.leftPageNum
-      ? "left"
-      : "right";
   const totalPages = activeProject ? activeProject.spreads.length * 2 : 0;
   const pageList = Array.from({ length: totalPages }, (_, i) => i + 1);
 
@@ -105,18 +102,14 @@ export default function App() {
     canvas: Canvas,
     orderedLayers: CanvasLayer[]
   ) => {
-    const bottomToTopIds = [...orderedLayers].reverse().map((l) => l.id);
-    const objects = canvas.getObjects();
-
-    objects.sort((a: any, b: any) => {
-      const layerA = a.layerId || bottomToTopIds[0];
-      const layerB = b.layerId || bottomToTopIds[0];
-      const idxA = bottomToTopIds.indexOf(layerA);
-      const idxB = bottomToTopIds.indexOf(layerB);
-      return idxA - idxB;
+    const bottomToTop = [...orderedLayers].reverse();
+    bottomToTop.forEach((layer) => {
+      canvas.getObjects().forEach((obj: any) => {
+        if (obj.layerId === layer.id) {
+          canvas.bringObjectToFront(obj);
+        }
+      });
     });
-
-    (canvas as any)._objects = objects;
     canvas.requestRenderAll();
   };
 
@@ -171,7 +164,7 @@ export default function App() {
     isHistoryLockedRef.current = true;
     c.loadFromJSON(previousState).then(() => {
       c.backgroundColor = "transparent";
-      c.renderAll();
+      c.requestRenderAll();
       isHistoryLockedRef.current = false;
       setCanUndo(undoStackRef.current.length > 1);
       setCanRedo(redoStackRef.current.length > 0);
@@ -188,7 +181,7 @@ export default function App() {
     isHistoryLockedRef.current = true;
     c.loadFromJSON(nextState).then(() => {
       c.backgroundColor = "transparent";
-      c.renderAll();
+      c.requestRenderAll();
       isHistoryLockedRef.current = false;
       setCanUndo(undoStackRef.current.length > 1);
       setCanRedo(redoStackRef.current.length > 0);
@@ -203,7 +196,7 @@ export default function App() {
       if (target) {
         c.remove(target);
         c.discardActiveObject();
-        c.renderAll();
+        c.requestRenderAll();
         setSelectedObject(null);
         recordCanvasState(c);
       }
@@ -383,6 +376,185 @@ export default function App() {
     });
 
     c.requestRenderAll();
+    recordCanvasState(c);
+  };
+
+  const handleApplyPageDivision = async (
+    side: "left" | "right",
+    type: PageDivisionType
+  ) => {
+    const c = activeCanvasRef.current;
+    if (!c) return;
+
+    try {
+      await (document as any).fonts.load(`30px "${selectedFont}"`);
+    } catch (e) {}
+
+    const pageMinX = side === "left" ? 50 : 650;
+    const pageWidth = 500;
+
+    if (type === "top_art_bottom_text") {
+      const textCard = new Rect({
+        left: pageMinX,
+        top: 400,
+        width: pageWidth,
+        height: 200,
+        rx: 12,
+        ry: 12,
+        fill: "rgba(255, 255, 255, 0.8)",
+        stroke: currentTheme.borderColor,
+        strokeWidth: 2,
+        layerId: activeLayerId,
+      });
+
+      const storyText = new IText("The gentle sunlight climbed over the branches...\n\nBegin your story sentence here.", {
+        left: pageMinX + 25,
+        top: 430,
+        fontFamily: selectedFont,
+        fontSize: 26,
+        fill: currentTheme.inkColor,
+        width: pageWidth - 50,
+        lineHeight: 1.4,
+        layerId: activeLayerId,
+      });
+
+      c.add(textCard);
+      c.add(storyText);
+      c.setActiveObject(storyText);
+    } else if (type === "bottom_art_top_text") {
+      const textCard = new Rect({
+        left: pageMinX,
+        top: 50,
+        width: pageWidth,
+        height: 200,
+        rx: 12,
+        ry: 12,
+        fill: "rgba(255, 255, 255, 0.8)",
+        stroke: currentTheme.borderColor,
+        strokeWidth: 2,
+        layerId: activeLayerId,
+      });
+
+      const storyText = new IText("Chapter Two:\n\nDeep in the autumn grove, a soft melody echoed.", {
+        left: pageMinX + 25,
+        top: 80,
+        fontFamily: selectedFont,
+        fontSize: 26,
+        fill: currentTheme.inkColor,
+        width: pageWidth - 50,
+        lineHeight: 1.4,
+        layerId: activeLayerId,
+      });
+
+      c.add(textCard);
+      c.add(storyText);
+      c.setActiveObject(storyText);
+    } else if (type === "split_vertical") {
+      const textCard = new Rect({
+        left: pageMinX + pageWidth / 2 + 10,
+        top: 50,
+        width: pageWidth / 2 - 20,
+        height: 550,
+        rx: 12,
+        ry: 12,
+        fill: "rgba(255, 255, 255, 0.8)",
+        stroke: currentTheme.borderColor,
+        strokeWidth: 2,
+        layerId: activeLayerId,
+      });
+
+      const storyText = new IText("Once there lived a curious friend.\n\nDraw your character in the left column!", {
+        left: pageMinX + pageWidth / 2 + 25,
+        top: 90,
+        fontFamily: selectedFont,
+        fontSize: 24,
+        fill: currentTheme.inkColor,
+        width: pageWidth / 2 - 50,
+        lineHeight: 1.4,
+        layerId: activeLayerId,
+      });
+
+      c.add(textCard);
+      c.add(storyText);
+      c.setActiveObject(storyText);
+    } else if (type === "floating_card") {
+      const vignette = new Rect({
+        left: pageMinX + 40,
+        top: 150,
+        width: pageWidth - 80,
+        height: 350,
+        rx: 16,
+        ry: 16,
+        fill: "rgba(255, 255, 255, 0.88)",
+        stroke: currentTheme.accentColor,
+        strokeWidth: 2,
+        layerId: activeLayerId,
+      });
+
+      const storyText = new IText("Whispers of the night sky:\n\nA bedtime vignette resting smoothly over your full illustration.", {
+        left: pageMinX + 65,
+        top: 190,
+        fontFamily: selectedFont,
+        fontSize: 26,
+        fill: currentTheme.inkColor,
+        width: pageWidth - 130,
+        lineHeight: 1.4,
+        layerId: activeLayerId,
+      });
+
+      c.add(vignette);
+      c.add(storyText);
+      c.setActiveObject(storyText);
+    } else if (type === "just_text") {
+      const textCard = new Rect({
+        left: pageMinX,
+        top: 50,
+        width: pageWidth,
+        height: 550,
+        rx: 14,
+        ry: 14,
+        fill: "rgba(255, 255, 255, 0.8)",
+        stroke: currentTheme.borderColor,
+        strokeWidth: 2,
+        layerId: activeLayerId,
+      });
+
+      const storyText = new IText("Once upon a gentle morning, the forest breathed a soft mist.\n\nEvery animal gathered near the old stone well to hear tales of the starry horizon.", {
+        left: pageMinX + 35,
+        top: 100,
+        fontFamily: selectedFont,
+        fontSize: 28,
+        fill: currentTheme.inkColor,
+        width: pageWidth - 70,
+        lineHeight: 1.5,
+        layerId: activeLayerId,
+      });
+
+      c.add(textCard);
+      c.add(storyText);
+      c.setActiveObject(storyText);
+    } else if (type === "just_drawing") {
+      const guideFrame = new Rect({
+        left: pageMinX,
+        top: 50,
+        width: pageWidth,
+        height: 550,
+        rx: 10,
+        ry: 10,
+        fill: "transparent",
+        stroke: currentTheme.borderColor,
+        strokeWidth: 1.5,
+        strokeDashArray: [8, 6],
+        layerId: activeLayerId,
+      });
+
+      c.add(guideFrame);
+      c.setActiveObject(guideFrame);
+    }
+
+    setMode("select");
+    setActiveTool("select");
+    syncObjectsLayerZOrder(c, currentLayers);
     recordCanvasState(c);
   };
 
@@ -725,9 +897,7 @@ export default function App() {
 
     try {
       await (document as any).fonts.load(`${fontSize}px "${selectedFont}"`);
-    } catch (e) {
-      console.warn(e);
-    }
+    } catch (e) {}
 
     const posX = activeSide === "left" ? 140 : 740;
     const text = new IText("Write your lovely story here...", {
@@ -743,9 +913,9 @@ export default function App() {
       cornerColor: currentTheme.accentColor,
       cornerSize: 8,
       transparentCorners: false,
+      layerId: activeLayerId,
     });
 
-    text.set("layerId", activeLayerId);
     c.add(text);
     c.setActiveObject(text);
     setMode("select");
@@ -762,9 +932,7 @@ export default function App() {
     const targetSize = selectedObject.fontSize || fontSize;
     try {
       await (document as any).fonts.load(`${targetSize}px "${font}"`);
-    } catch (e) {
-      console.warn(e);
-    }
+    } catch (e) {}
 
     selectedObject.set("fontFamily", font);
     if (typeof (selectedObject as any).initDimensions === "function") {
@@ -803,6 +971,11 @@ export default function App() {
   };
 
   const handleMouseMoveOnStage = (e: React.MouseEvent) => {
+    if (e.buttons === 0) {
+      if (isPanning) setIsPanning(false);
+      return;
+    }
+
     if (isPanning) {
       setPan({
         x: e.clientX - panStartRef.current.x,
@@ -1166,7 +1339,6 @@ export default function App() {
       </header>
 
       <div className="lofi-editor-body">
-        {/* LEFT DUAL RAIL */}
         <DrawingToolbox
           activeTool={activeTool}
           onSelectTool={handleSelectTool}
@@ -1202,7 +1374,6 @@ export default function App() {
           onDelete={() => deleteElement()}
         />
 
-        {/* CANVAS VIEWPORT */}
         <main
           className={`lofi-desk-viewport ${mode === "pan" ? "pan-mode" : ""} ${
             isPanning ? "grabbing" : ""
@@ -1245,7 +1416,6 @@ export default function App() {
           </div>
         </main>
 
-        {/* RIGHT DEDICATED LAYERS PANEL */}
         <LayersPanel
           isOpen={isLayersOpen}
           onToggle={() => setIsLayersOpen(!isLayersOpen)}
@@ -1258,6 +1428,11 @@ export default function App() {
           onToggleLock={handleToggleLayerLock}
           onReorderLayers={handleReorderLayers}
           onDeleteLayer={handleDeleteLayer}
+          activeSide={activeSide}
+          onSelectPageSide={setActiveSide}
+          leftPageNum={activeSpread ? activeSpread.leftPageNum : 1}
+          rightPageNum={activeSpread ? activeSpread.rightPageNum : 2}
+          onApplyPageDivision={handleApplyPageDivision}
         />
       </div>
 
@@ -1266,34 +1441,35 @@ export default function App() {
           <button
             className="turn-btn left"
             disabled={activePageNum === 1 || !!turnState?.active}
-            onClick={() => goToPage(activePageNum - 1)}
+            onClick={() => goToPage(Math.max(1, activePageNum - 2))}
           >
-            ← Prev Page
+            ← Prev Spread
           </button>
           <span className="page-tracker-text">
-            Page {activePageNum} of {totalPages}
+            Viewing Pages {activeSpread ? `${activeSpread.leftPageNum} & ${activeSpread.rightPageNum}` : "1 & 2"} of {totalPages}
           </span>
           <button
             className="turn-btn right"
-            disabled={activePageNum === totalPages || !!turnState?.active}
-            onClick={() => goToPage(activePageNum + 1)}
+            disabled={activePageNum >= totalPages - 1 || !!turnState?.active}
+            onClick={() => goToPage(Math.min(totalPages, activePageNum + 2))}
           >
-            Next Page →
+            Next Spread →
           </button>
         </div>
 
         <div className="tray-tabs-ribbon">
-          {pageList.map((pageNum) => (
-            <button
-              key={pageNum}
-              className={`page-chip ${
-                activePageNum === pageNum ? "active" : ""
-              }`}
-              onClick={() => goToPage(pageNum)}
-            >
-              p. {pageNum}
-            </button>
-          ))}
+          {activeProject?.spreads.map((spread) => {
+            const isSelected = activeSpread?.id === spread.id;
+            return (
+              <button
+                key={spread.id}
+                className={`page-chip ${isSelected ? "active" : ""}`}
+                onClick={() => goToPage(spread.leftPageNum)}
+              >
+                pp. {spread.leftPageNum}-{spread.rightPageNum}
+              </button>
+            );
+          })}
           <button className="page-chip add" onClick={addSpreadPages}>
             + 2 Pages
           </button>
