@@ -32,6 +32,7 @@ interface SpreadCanvasProps {
   onSelectionChange: (target: any | null) => void;
   onSelectLayerByTouch: (layerId: string) => void;
   onSelectPageSide?: (side: "left" | "right") => void;
+  onContextMenu?: (menuData: { x: number; y: number; target: any } | null) => void;
   onSaveState: (canvas: Canvas) => void;
 }
 
@@ -59,6 +60,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   onSelectionChange,
   onSelectLayerByTouch,
   onSelectPageSide,
+  onContextMenu,
   onSaveState,
 }) => {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
@@ -72,6 +74,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   const wandModeRef = useRef(wandMode);
   const wandColorRef = useRef(wandColor);
   const wandContinuousRef = useRef(wandContinuous);
+  const onContextMenuRef = useRef(onContextMenu);
 
   useEffect(() => {
     activeLayerIdRef.current = activeLayerId;
@@ -82,6 +85,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     wandModeRef.current = wandMode;
     wandColorRef.current = wandColor;
     wandContinuousRef.current = wandContinuous;
+    onContextMenuRef.current = onContextMenu;
   });
 
   useEffect(() => {
@@ -94,6 +98,8 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       isDrawingMode: mode === "draw" && toolType !== "wand",
       selection: mode === "select",
       enableRetinaScaling: true,
+      fireRightClick: true,
+      stopContextMenu: true,
     });
 
     const ctx = canvas.getContext();
@@ -126,6 +132,29 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     });
 
     canvas.on("mouse:down", (e) => {
+      const nativeEvt = e.e as MouseEvent;
+
+      if (nativeEvt && nativeEvt.button === 2) {
+        const target = e.target as any;
+        if (target) {
+          canvas.setActiveObject(target);
+          canvas.requestRenderAll();
+          onSelectionChange(target);
+        }
+        if (onContextMenuRef.current) {
+          onContextMenuRef.current({
+            x: nativeEvt.clientX,
+            y: nativeEvt.clientY,
+            target: target || null,
+          });
+        }
+        return;
+      }
+
+      if (onContextMenuRef.current) {
+        onContextMenuRef.current(null);
+      }
+
       if (toolTypeRef.current !== "wand") return;
 
       const target = e.target as any;
@@ -303,6 +332,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       style={{
         backgroundColor: theme.spineColor,
       }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <div className="book-page-stack-edge left" style={{ pointerEvents: "none" }} />
       <div className="book-page-stack-edge right" style={{ pointerEvents: "none" }} />

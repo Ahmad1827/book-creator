@@ -2109,3 +2109,74 @@ body, html, #root {
   border-style: dashed;
   color: #dfbe87;
 }
+
+.lofi-context-menu {
+  position: fixed;
+  z-index: 1000;
+  width: 190px;
+  background: #fbf5ea;
+  border: 2px solid #8d6b4f;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: contextMenuPop 0.12s ease-out;
+}
+
+@keyframes contextMenuPop {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu-item {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #3b2212;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+}
+
+.context-menu-item:hover {
+  background: #ecd9bf;
+  color: #1a0d06;
+}
+
+.context-menu-item svg {
+  color: #8b5b32;
+  flex-shrink: 0;
+}
+
+.context-menu-item.danger {
+  color: #b91c1c;
+}
+
+.context-menu-item.danger svg {
+  color: #b91c1c;
+}
+
+.context-menu-item.danger:hover {
+  background: #fee2e2;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: #dcc6ab;
+  margin: 4px 2px;
+}

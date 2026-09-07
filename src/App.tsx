@@ -22,6 +22,12 @@ const DEFAULT_LAYERS: CanvasLayer[] = [
 
 const STORAGE_KEY = "atelier_lofi_projects_v1";
 
+interface ContextMenuData {
+  x: number;
+  y: number;
+  target: any;
+}
+
 export default function App() {
   const [projects, setProjects] = useState<BookProject[]>(() => {
     try {
@@ -42,6 +48,7 @@ export default function App() {
   const [activeCanvas, setActiveCanvas] = useState<Canvas | null>(null);
   const activeCanvasRef = useRef<Canvas | null>(null);
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuData | null>(null);
 
   const [isLayersOpen, setIsLayersOpen] = useState<boolean>(true);
 
@@ -92,6 +99,22 @@ export default function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
     } catch (e) {}
   }, [projects]);
+
+  useEffect(() => {
+    const handleGlobalDismiss = () => {
+      setContextMenu(null);
+    };
+    const handleKeyDownDismiss = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+
+    window.addEventListener("click", handleGlobalDismiss);
+    window.addEventListener("keydown", handleKeyDownDismiss);
+    return () => {
+      window.removeEventListener("click", handleGlobalDismiss);
+      window.removeEventListener("keydown", handleKeyDownDismiss);
+    };
+  }, []);
 
   const activeProject = projects.find((p) => p.id === activeProjectId) || null;
   const currentTheme =
@@ -220,6 +243,58 @@ export default function App() {
     },
     [recordCanvasState]
   );
+
+  const bringToFront = () => {
+    const c = activeCanvasRef.current;
+    const obj = c?.getActiveObject();
+    if (c && obj) {
+      c.bringObjectToFront(obj);
+      c.requestRenderAll();
+      recordCanvasState(c);
+    }
+    setContextMenu(null);
+  };
+
+  const sendToBack = () => {
+    const c = activeCanvasRef.current;
+    const obj = c?.getActiveObject();
+    if (c && obj) {
+      c.sendObjectToBack(obj);
+      c.requestRenderAll();
+      recordCanvasState(c);
+    }
+    setContextMenu(null);
+  };
+
+  const toggleLockObject = () => {
+    const c = activeCanvasRef.current;
+    const obj = c?.getActiveObject() as any;
+    if (c && obj) {
+      const isLocked = !!obj.lockMovementX;
+      obj.set({
+        lockMovementX: !isLocked,
+        lockMovementY: !isLocked,
+        lockRotation: !isLocked,
+        lockScalingX: !isLocked,
+        lockScalingY: !isLocked,
+        hasControls: isLocked,
+      });
+      c.requestRenderAll();
+      recordCanvasState(c);
+    }
+    setContextMenu(null);
+  };
+
+  const flipObjectHorizontal = () => {
+    const c = activeCanvasRef.current;
+    const obj = c?.getActiveObject();
+    if (c && obj) {
+      obj.set("flipX", !obj.flipX);
+      c.requestRenderAll();
+      recordCanvasState(c);
+    }
+    setContextMenu(null);
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -794,6 +869,7 @@ export default function App() {
         recordCanvasState(c);
       });
     }
+    setContextMenu(null);
   };
 
   const createNewBook = (e: React.FormEvent) => {
@@ -967,7 +1043,7 @@ export default function App() {
         } else {
           c.clear();
           c.backgroundColor = "transparent";
-          c.renderAll();
+          c.requestRenderAll();
           isHistoryLockedRef.current = false;
           undoStackRef.current = [c.toJSON()];
           redoStackRef.current = [];
@@ -1725,9 +1801,97 @@ export default function App() {
               onSelectLayerByTouch={(lId) =>
                 updateCurrentSpreadLayers(currentLayers, lId)
               }
+              onContextMenu={setContextMenu}
               onSaveState={recordCanvasState}
             />
           </div>
+
+          {contextMenu && (
+            <div
+              className="lofi-context-menu"
+              style={{
+                top: Math.min(contextMenu.y, window.innerHeight - 230),
+                left: Math.min(contextMenu.x, window.innerWidth - 200),
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {contextMenu.target ? (
+                <>
+                  <button className="context-menu-item" onClick={handleDuplicate}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    <span>Duplicate</span>
+                  </button>
+
+                  <button className="context-menu-item" onClick={bringToFront}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                      <polyline points="2 17 12 22 22 17" />
+                      <polyline points="2 12 12 17 22 12" />
+                    </svg>
+                    <span>Bring to Front</span>
+                  </button>
+
+                  <button className="context-menu-item" onClick={sendToBack}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="12 12 2 17 12 22 22 17 12 12" />
+                      <polyline points="2 7 12 2 22 7" />
+                    </svg>
+                    <span>Send to Back</span>
+                  </button>
+
+                  <button className="context-menu-item" onClick={flipObjectHorizontal}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="16 3 21 3 21 8" />
+                      <line x1="4" y1="20" x2="21" y2="3" />
+                      <polyline points="21 16 21 21 16 21" />
+                      <line x1="15" y1="15" x2="21" y2="21" />
+                      <line x1="4" y1="4" x2="9" y2="9" />
+                    </svg>
+                    <span>Flip Horizontal</span>
+                  </button>
+
+                  <button className="context-menu-item" onClick={toggleLockObject}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <span>{contextMenu.target.lockMovementX ? "Unlock Object" : "Lock Position"}</span>
+                  </button>
+
+                  <div className="context-menu-divider" />
+
+                  <button className="context-menu-item danger" onClick={() => { deleteElement(contextMenu.target); setContextMenu(null); }}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                    <span>Delete</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="context-menu-item" onClick={() => { addTextElement(); setContextMenu(null); }}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    <span>Add Text Here</span>
+                  </button>
+                  <button className="context-menu-item" onClick={() => { resetView(); setContextMenu(null); }}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span>Reset View (100%)</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </main>
 
         <LayersPanel
