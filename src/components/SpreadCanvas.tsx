@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Canvas, PencilBrush, ActiveSelection, config } from "fabric";
-import { BookTheme } from "../types";
+import { BookTheme, FolioPosition, FolioStyle } from "../types";
 import { ThemeDecors } from "./ThemeDecors";
 import { BrushSubtype, WandMode } from "./DrawingToolbox";
 
@@ -23,9 +23,15 @@ interface SpreadCanvasProps {
   canvasData: any | null;
   activeSide: "left" | "right";
   turnState: { active: boolean; direction: "next" | "prev" } | null;
+  leftPageNum?: number;
+  rightPageNum?: number;
+  showPageNumbers?: boolean;
+  folioPosition?: FolioPosition;
+  folioStyle?: FolioStyle;
   onCanvasReady: (canvas: Canvas) => void;
   onSelectionChange: (target: any | null) => void;
   onSelectLayerByTouch: (layerId: string) => void;
+  onSelectPageSide?: (side: "left" | "right") => void;
   onSaveState: (canvas: Canvas) => void;
 }
 
@@ -44,9 +50,15 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
   canvasData,
   activeSide,
   turnState,
+  leftPageNum = 1,
+  rightPageNum = 2,
+  showPageNumbers = true,
+  folioPosition = "outer_bottom",
+  folioStyle = "flourish",
   onCanvasReady,
   onSelectionChange,
   onSelectLayerByTouch,
+  onSelectPageSide,
   onSaveState,
 }) => {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
@@ -113,7 +125,6 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
       onSaveStateRef.current(canvas);
     });
 
-    // Magic Wand Click: Continuous vs. Non-Continuous
     canvas.on("mouse:down", (e) => {
       if (toolTypeRef.current !== "wand") return;
 
@@ -125,10 +136,9 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
 
       if (wandModeRef.current === "recolor") {
         if (isContinuous) {
-          // CONTINUOUS: Only recolor the single clicked stroke/element
           if (target.type === "path" && !target.stickerId) {
             target.set("stroke", newColor);
-          } else if (target.type === "i-text") {
+          } else if (target.type === "i-text" || target.type === "textbox") {
             target.set("fill", newColor);
           } else {
             target.set("fill", newColor);
@@ -137,7 +147,6 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
             }
           }
         } else {
-          // NON-CONTINUOUS: Recolor all matching colors across the layer
           const targetColor = (
             target.stroke && target.stroke !== "transparent"
               ? target.stroke
@@ -191,16 +200,26 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     canvas.on("selection:created", (e) => {
       const selected = e.selected ? e.selected[0] : null;
       onSelectionChange(selected);
-      if (selected && (selected as any).layerId) {
-        onSelectLayerByTouchRef.current((selected as any).layerId);
+      if (selected) {
+        if ((selected as any).layerId) {
+          onSelectLayerByTouchRef.current((selected as any).layerId);
+        }
+        if (onSelectPageSide && selected.left !== undefined) {
+          onSelectPageSide(selected.left < 600 ? "left" : "right");
+        }
       }
     });
 
     canvas.on("selection:updated", (e) => {
       const selected = e.selected ? e.selected[0] : null;
       onSelectionChange(selected);
-      if (selected && (selected as any).layerId) {
-        onSelectLayerByTouchRef.current((selected as any).layerId);
+      if (selected) {
+        if ((selected as any).layerId) {
+          onSelectLayerByTouchRef.current((selected as any).layerId);
+        }
+        if (onSelectPageSide && selected.left !== undefined) {
+          onSelectPageSide(selected.left < 600 ? "left" : "right");
+        }
       }
     });
 
@@ -260,15 +279,39 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
     }
   }, [mode, toolType, brushSubtype, brushColor, brushSize, brushOpacity]);
 
+  const renderFolioBadge = (num: number, side: "left" | "right") => {
+    if (!showPageNumbers || folioPosition === "none") return null;
+
+    let content: React.ReactNode = num;
+    if (folioStyle === "flourish") content = `— ${num} —`;
+    else if (folioStyle === "pill_badge") content = `[ ${num} ]`;
+    else if (folioStyle === "handwritten") content = `❦ ${num} ❦`;
+
+    return (
+      <div 
+        className={`folio-indicator-badge ${folioPosition} ${side} ${folioStyle}`}
+        style={{ pointerEvents: "none" }}
+      >
+        <span>{content}</span>
+      </div>
+    );
+  };
+
   return (
     <div
       className="lofi-book-casing"
       style={{
         backgroundColor: theme.spineColor,
-        borderColor: theme.spineColor,
       }}
     >
-      <div className="spine-cloth-strip" />
+      <div className="book-page-stack-edge left" style={{ pointerEvents: "none" }} />
+      <div className="book-page-stack-edge right" style={{ pointerEvents: "none" }} />
+      <div className="book-page-stack-edge top" style={{ pointerEvents: "none" }} />
+      <div className="book-page-stack-edge bottom" style={{ pointerEvents: "none" }} />
+
+      <div className="spine-cloth-strip" style={{ pointerEvents: "none" }} />
+      <div className="book-headband top" style={{ pointerEvents: "none" }} />
+      <div className="book-headband bottom" style={{ pointerEvents: "none" }} />
 
       <div
         className="spread-paper-surface"
@@ -277,9 +320,12 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
           borderColor: theme.borderColor,
         }}
       >
+        <div className="page-curl-gradient left" style={{ pointerEvents: "none" }} />
+        <div className="page-curl-gradient right" style={{ pointerEvents: "none" }} />
+
         <ThemeDecors theme={theme} />
 
-        <div className={`active-page-rim ${activeSide}`} />
+        <div className={`active-page-rim ${activeSide}`} style={{ pointerEvents: "none" }} />
 
         <div
           className={`canvas-viewport-layer ${toolType === "wand" ? "wand-active" : ""}`}
@@ -288,10 +334,14 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
           <canvas ref={canvasElRef} />
         </div>
 
-        <div className="book-gutter-depth" />
+        {renderFolioBadge(leftPageNum, "left")}
+        {renderFolioBadge(rightPageNum, "right")}
+
+        <div className="book-gutter-crease" style={{ pointerEvents: "none" }} />
+        <div className="book-gutter-depth" style={{ pointerEvents: "none" }} />
 
         {turnState?.active && (
-          <div className={`realistic-flipper-sheet ${turnState.direction}`}>
+          <div className={`realistic-flipper-sheet ${turnState.direction}`} style={{ pointerEvents: "none" }}>
             <div
               className="flipper-face flipper-front"
               style={{ backgroundColor: theme.paperBg }}
@@ -310,7 +360,7 @@ export const SpreadCanvas: React.FC<SpreadCanvasProps> = ({
         )}
 
         {turnState?.active && (
-          <div className={`gutter-cast-shadow ${turnState.direction}`} />
+          <div className={`gutter-cast-shadow ${turnState.direction}`} style={{ pointerEvents: "none" }} />
         )}
       </div>
     </div>
